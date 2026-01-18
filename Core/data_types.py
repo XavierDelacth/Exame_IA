@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 CellType = str  # 'L' | 'B' | 'F' | 'T' | 'U'  # Livre, Bomba, Bandeira, Tesouro, Desconhecido
 
@@ -10,6 +10,8 @@ class Cell:
     y: int
     type: CellType
     isExplored: bool
+    collected: bool = False
+    neutralized: bool = False
 
 class MLModelType(Enum):
     KNN = 'KNN'
@@ -28,9 +30,9 @@ class Agent:
     x: int
     y: int
     isAlive: bool
-    hasShield: bool  # Capacidade de desativar bomba após recolher tesouro
-    path: List[dict]  # Lista de {'x': int, 'y': int}
-    color: str
+    shield_count: int = 0
+    path: List[dict] = field(default_factory=list)
+    color: str = ""
 
 @dataclass
 class LogEntry:

@@ -38,7 +38,11 @@ class AppState:
     def __init__(self):
         self.grid: List[List[Cell]] = []
         self.agents: List[Agent] = []
-        self.hub = CommunicationHub()
+        self.hubs = {
+            MLModelType.KNN: CommunicationHub(),
+            MLModelType.DECISION_TREE: CommunicationHub(),
+            MLModelType.NAIVE_BAYES: CommunicationHub()
+        }
         self.logs: List[Dict] = []
         self.stats: Optional[SimulationStats] = None
         self.historical_stats: List[SimulationStats] = []
@@ -54,27 +58,29 @@ class AppState:
         self.step_count = 0
 
 def initialize_environment(state: AppState, num_agents: int, bomb_ratio: float, current_approach: Approach):
-    state.hub.reset()
+    for hub in state.hubs.values():
+        hub.reset()
     state.logged_destroyed_ids.clear()
     state.mission_finished = False
     state.step_count = 0
 
     flat_grid = ['L'] * TOTAL_CELLS
-    num_bombs = int(TOTAL_CELLS * (bomb_ratio / 100))
-    num_treasures = 10
+    num_bombs = 50
 
-    # Colocar bombas
+    # Colocar bombas, deixando bordas livres para travessibilidade (linhas 0-1 e colunas 0-1)
     placed = 0
     while placed < num_bombs:
         idx = random.randint(0, TOTAL_CELLS - 1)
-        if flat_grid[idx] == 'L' and idx != 0:
+        x = idx % GRID_SIZE
+        y = idx // GRID_SIZE
+        if flat_grid[idx] == 'L' and idx != 0 and y > 1 and x > 1:
             flat_grid[idx] = 'B'
             placed += 1
 
-    # Colocar tesouros para Abordagem A
-    if current_approach == Approach.A:
+    # Colocar tesouros para todas as abordagens
+    if current_approach in [Approach.A, Approach.B, Approach.C]:
         placed = 0
-        while placed < num_treasures:
+        while placed < 25:
             idx = random.randint(0, TOTAL_CELLS - 1)
             if flat_grid[idx] == 'L' and idx != 0:
                 flat_grid[idx] = 'T'
@@ -94,12 +100,13 @@ def initialize_environment(state: AppState, num_agents: int, bomb_ratio: float, 
         row = []
         for j in range(GRID_SIZE):
             cell_type = flat_grid[i * GRID_SIZE + j]
-            row.append(Cell(x=j, y=i, type=cell_type, isExplored=False))
+            row.append(Cell(x=j, y=i, type=cell_type, isExplored=False, collected=False, neutralized=False))
         state.grid.append(row)
 
     # Explorar posição inicial
     state.grid[0][0].isExplored = True
-    state.hub.registerExploration(state.grid[0][0])
+    for hub in state.hubs.values():
+        hub.registerExploration(state.grid[0][0])
 
     # Criar agentes
     models = [MLModelType.KNN, MLModelType.DECISION_TREE, MLModelType.NAIVE_BAYES]
@@ -110,7 +117,6 @@ def initialize_environment(state: AppState, num_agents: int, bomb_ratio: float, 
             model=models[i % len(models)],
             x=0, y=0,
             isAlive=True,
-            hasShield=False,
             path=[{'x': 0, 'y': 0}],
             color=AGENT_COLORS[i % len(AGENT_COLORS)]
         ))
@@ -152,38 +158,44 @@ def step_simulation(state: AppState, current_approach: Approach, num_agents: int
             continue
         any_alive = True
 
+        hub = state.hubs[agent.model]
         current_pos = Point(x=agent.x, y=agent.y)
         valid_moves = [
             Point(x=agent.x + 1, y=agent.y), Point(x=agent.x - 1, y=agent.y),
             Point(x=agent.x, y=agent.y + 1), Point(x=agent.x, y=agent.y - 1)
         ]
-        valid_moves = [m for m in valid_moves if 0 <= m.x < GRID_SIZE and 0 <= m.y < GRID_SIZE and not state.hub.isKnownBomb(m.x, m.y)]
+        valid_moves = [m for m in valid_moves if 0 <= m.x < GRID_SIZE and 0 <= m.y < GRID_SIZE and not hub.isKnownBomb(m.x, m.y)]
 
-        unexplored = [m for m in valid_moves if not state.hub.isExplored(m.x, m.y)]
+        unexplored = [m for m in valid_moves if not hub.isExplored(m.x, m.y)]
         pool = unexplored if unexplored else valid_moves
         if not pool:
             continue
 
         # Escolher movimento baseado no modelo
         if agent.model == MLModelType.KNN:
-            move = knnPredictNextMove(current_pos, pool, state.grid, state.hub)
+            move = knnPredictNextMove(current_pos, pool, state.grid, hub)
         elif agent.model == MLModelType.DECISION_TREE:
-            move = decisionTreePredictNextMove(current_pos, pool, state.grid, state.hub)
+            move = decisionTreePredictNextMove(current_pos, pool, state.grid, hub)
         else:  # NAIVE_BAYES
-            move = naiveBayesPredictNextMove(current_pos, pool, state.grid, state.hub)
+            move = naiveBayesPredictNextMove(current_pos, pool, state.grid, hub)
 
-        is_new = not state.hub.isExplored(move.x, move.y)
+        is_new = not hub.isExplored(move.x, move.y)
         cell = state.grid[move.y][move.x]
         agent.x, agent.y = move.x, move.y
         agent.path.append({'x': move.x, 'y': move.y})
 
         if is_new:
             if cell.type == 'B':
-                if agent.hasShield:
-                    agent.hasShield = False
+                if agent.shield_count > 0:
+                    agent.shield_count -= 1
+                    cell.neutralized = True
+                    cell.type = 'L'  # Defuse the bomb
+                    key = f"{cell.x},{cell.y}"
+                    if key in hub.knownBombs:
+                        hub.knownBombs.remove(key)
                     batch_logs.append({
                         'timestamp': time.time(),
-                        'message': f"Agente {agent.id} neutralizou obstáculo em [{move.x},{move.y}]",
+                        'message': f"Agente {agent.id} neutralizou obstáculo em [{move.x},{move.y}] (Escudos restantes: {agent.shield_count})",
                         'type': 'warning'
                     })
                 else:
@@ -196,10 +208,12 @@ def step_simulation(state: AppState, current_approach: Approach, num_agents: int
                         })
                         state.logged_destroyed_ids.add(agent.id)
             elif cell.type == 'T':
-                agent.hasShield = True
+                agent.shield_count += 1
+                cell.collected = True
+                cell.type = 'L'  # Consumir o tesouro, tornando a célula vazia
                 batch_logs.append({
                     'timestamp': time.time(),
-                    'message': f"Agente {agent.id} coletou T (Escudo de proteção)",
+                    'message': f"Agente {agent.id} coletou T (Escudos: {agent.shield_count})",
                     'type': 'success'
                 })
             elif cell.type == 'F' and current_approach == Approach.C:
@@ -211,7 +225,7 @@ def step_simulation(state: AppState, current_approach: Approach, num_agents: int
                     'type': 'success'
                 })
 
-            state.hub.registerExploration(cell)
+            hub.registerExploration(cell)
             state.grid[move.y][move.x].isExplored = True
 
     for log_entry in reversed(batch_logs):
@@ -280,18 +294,18 @@ def main():
     # Verificar imports
     try:
         # Testar se as classes existem
-        test_cell = Cell(0, 0, 'L', False)
-        test_agent = Agent(0, MLModelType.KNN, 0, 0, True, False, [], '🔴')
+        test_cell = Cell(0, 0, 'L', False, False, False)
+        test_agent = Agent(0, MLModelType.KNN, 0, 0, True)
         test_hub = CommunicationHub()
     except Exception as e:
         st.error(f"Erro nos módulos importados: {e}")
         return
     
     try:
-        st.set_page_config(page_title="IA Exploradora Multiagente", page_icon="🤖", layout="wide")
+        st.set_page_config(page_title="AGENTES COLABORATIVOS", page_icon=None, layout="wide")
 
-        st.title("IA Exploradora Multiagente")
-        st.markdown("*Protocolo Colaborativo v2.5 - Versão Python*")
+        st.title("AGENTES COLABORATIVOS")
+        st.markdown("*...*")
 
         # Inicializar estado da sessão
         if 'app_state' not in st.session_state:
@@ -308,12 +322,8 @@ def main():
                 # número mínimo de agentes 
                 num_agents = st.slider("Número de Agentes", 2, 10, 2)
             with col2:
-                # Valor inicial do ratio de bombas permanece em 50% 
-                bomb_options = [50, 75]
-
-                bomb_labels = [f"{v}%" for v in bomb_options]
-                bomb_selected = st.radio("Ratio de Bombas (%)", bomb_labels, index=1, key='bomb_radio')
-                bomb_ratio = int(bomb_selected.rstrip('%'))
+                # Número fixo de bombas para equilíbrio
+                bomb_ratio = 30
 
             # Usar botões rádio para selecionar a abordagem 
             approach_options = [
@@ -369,7 +379,13 @@ def main():
                     content = ''
 
                     if cell.isExplored:
-                        if cell.type == 'B':
+                        if cell.collected:
+                            bg_color = '#f59e0b'
+                            content = 'T'
+                        elif cell.neutralized:
+                            bg_color = '#6b7280'  # Cor para neutralizado, ex: cinza
+                            content = 'N'
+                        elif cell.type == 'B':
                             bg_color = '#dc2626'
                             content = 'B'
                         elif cell.type == 'T':
@@ -431,6 +447,61 @@ def main():
                 } for stat in state.historical_stats[-10:]]  # Last 10
 
                 st.dataframe(history_df, width='stretch')
+
+        # Nova seção de análise baseada no que realmente aconteceu na matriz
+        st.header("Análise de Ciclo")
+
+        # 1) Melhor grupo — agente que progrediu mais (maior comprimento de caminho)
+        st.subheader("1. Melhor Grupo de Modelos (por progresso)")
+        agent_progress = [(a.id, a.model.value, len(a.path)) for a in state.agents]
+        if agent_progress:
+            best_agent = max(agent_progress, key=lambda t: t[2])
+            st.write(f"Agente que progrediu mais: **Agente {best_agent[0]}** ({best_agent[1]}) — passos: {best_agent[2]}")
+        else:
+            st.write("Nenhum agente presente nesta sessão.")
+
+        # 2) Vantagem da colaboração heterogênea — comparar cobertura combinada vs individuais
+        st.subheader("2. Vantagem da Colaboração Heterogênea (neste ciclo)")
+        # Recolher conjuntos de células exploradas por cada modelo (usando os hubs por modelo)
+        model_explored: Dict[str, set] = {}
+        for model_enum, hub in state.hubs.items():
+            model_explored[model_enum.value] = set(hub.exploredCells)
+
+        union_explored = set().union(*model_explored.values()) if model_explored else set()
+        per_model_counts = {m: len(s) for m, s in model_explored.items()}
+        if per_model_counts:
+            best_single = max(per_model_counts.items(), key=lambda x: x[1])
+            extra_by_collab = len(union_explored) - best_single[1]
+            st.write(f"Cobertura combinada: **{len(union_explored)}** células únicas exploradas; melhor modelo individual (**{best_single[0]}**) explorou **{best_single[1]}** células.")
+            if extra_by_collab > 0:
+                st.write(f"A colaboração heterogênea permitiu explorar **{extra_by_collab}** células adicionais além do melhor modelo individual — mostra benefício prático nesta sessão.")
+            else:
+                st.write("A colaboração não trouxe ganho de cobertura nesta sessão (modelos sobrepuseram exploração).")
+        else:
+            st.write("Sem dados de exploração por modelo nesta sessão.")
+
+        # 3) Menos vs Mais Agentes — adaptar resposta ao que aconteceu
+        st.subheader("3. Exploração: Menos vs. Mais Agentes (análise da sessão)")
+        agents_total = num_agents
+        agents_alive = len([a for a in state.agents if a.isAlive])
+        avg_path = (sum(len(a.path) for a in state.agents) / len(state.agents)) if state.agents else 0
+        explored_cells = sum(1 for row in state.grid for c in row if c.isExplored)
+
+        st.write(f"Agentes configurados: **{agents_total}** — Agentes vivos no momento: **{agents_alive}**.")
+        st.write(f"Células exploradas nesta sessão: **{explored_cells}/{TOTAL_CELLS}**. Comprimento médio de caminho por agente: **{avg_path:.1f}** passos.")
+
+        if agents_total <= 4:
+            st.write("Com poucos agentes, a exploração tende a ser mais lenta; se muitos agentes morreram (baixo número de vivos), a missão frequentemente falha — observe os sobreviventes acima.")
+        else:
+            st.write("Com mais agentes, a cobertura costuma aumentar (mais caminhos simultâneos). Se muitos agentes ainda estiverem vivos e a exploração for alta, isso confirma vantagem de escala.")
+
+        # Observação prática baseada na sessão
+        if explored_cells == TOTAL_CELLS and agents_alive >= 1:
+            st.write("Resultado: Ambiente totalmente explorado com agentes sobreviventes — missão bem-sucedida nesta sessão.")
+        elif explored_cells == TOTAL_CELLS and agents_alive == 0:
+            st.write("Resultado: Ambiente totalmente explorado, mas sem agentes vivos — missão tecnicamente completa, porém sem sobreviventes.")
+        else:
+            st.write("Resultado: Exploração incompleta nesta sessão — considere aumentar agentes, ajustar posição de tesouros, ou reduzir densidade de bombas para melhorar cobertura.")
 
         # Auto-run simulation
         if state.is_running and not state.mission_finished:
