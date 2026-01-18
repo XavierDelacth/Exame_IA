@@ -1,0 +1,1 @@
+# Versão Python do Sistema de Exploração Multiagente Colaborativo
