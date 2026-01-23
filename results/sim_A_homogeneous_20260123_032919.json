@@ -1,0 +1,22 @@
+{
+  "config": {
+    "approach": "A",
+    "groupType": "homogeneous",
+    "numAgents": 3,
+    "bombRatio": 0.5
+  },
+  "metrics": {
+    "approach": "A",
+    "group_type": "homogeneous",
+    "num_agents": 3,
+    "bomb_ratio": 0.5,
+    "start_time": 1769138959.5950606,
+    "end_time": 1769138959.6999106,
+    "execution_time": 0.10485005378723145,
+    "total_steps": 3,
+    "exploration_percentage": 3.0,
+    "bombs_activated": 3,
+    "agents_destroyed": 3,
+    "agents_alive": 0,
+    "treasures_found": 0,
+    "success": 
