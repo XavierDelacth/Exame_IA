@@ -1,2 +1,5 @@
 .venv/
 venv_ia/ 
+ia2026/
+__pycache__/
+newenv/
