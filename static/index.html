@@ -125,18 +125,6 @@
             transform: none;
         }
 
-        .btn-stop {
-            background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%);
-            color: white;
-            margin-top: 20px;
-            margin-left: 10px;
-        }
-
-        .btn-stop:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
-        }
-
         .config-group {
             margin-bottom: 15px;
         }
@@ -400,7 +388,6 @@
                 </div>
 
                 <button class="btn btn-run" id="runBtn">▶️ Executar Simulação</button>
-                <button class="btn btn-stop" id="stopBtn" style="display: none;">⏹️ Finalizar Simulação</button>
             </div>
 
             <div class="content-area">
@@ -466,14 +453,13 @@
         // Elementos DOM
         const approachButtons = document.querySelectorAll('.btn-approach');
         const runBtn = document.getElementById('runBtn');
-        const stopBtn = document.getElementById('stopBtn');
         const gridDisplay = document.getElementById('gridDisplay');
         const logContainer = document.getElementById('logContainer');
         const metricsDisplay = document.getElementById('metricsDisplay');
         const loading = document.getElementById('loading');
 
         // Cores para agentes
-        const AGENT_COLORS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+        const AGENT_COLORS = ['🔴', '🔵', '🟡', '🟢', '🟣', '🟠', '⚪', '🟤', '🟥', '🟦'];
 
         // Tabs
         const tabs = document.querySelectorAll('.tab');
@@ -512,33 +498,7 @@
         }
 
         // Atualizar visualização do grid
-        function updateGrid(environment, agents) {
-            const cells = gridDisplay.querySelectorAll('.cell');
-            
-            cells.forEach((cell, idx) => {
-                const row = Math.floor(idx / 10);
-                const col = idx % 10;
-                
-                // Reset
-                cell.className = 'cell';
-                cell.textContent = '';
-                
-                // Tipo de célula
-                const cellType = environment[row][col];
-                if (cellType === 'L') cell.classList.add('free');
-                else if (cellType === 'B') cell.classList.add('bomb');
-                else if (cellType === 'T') cell.classList.add('treasure');
-                else if (cellType === 'F') cell.classList.add('flag');
-                
-                // Agentes
-                agents.forEach((agent, i) => {
-                    if (agent.position[0] === row && agent.position[1] === col && agent.alive) {
-                        cell.classList.add('agent');
-                        cell.textContent = `A${i+1}`;
-                    }
-                });
-            });
-        }
+ 
 
         // Adicionar log
         function addLog(message, type = 'info') {
@@ -588,26 +548,6 @@
             }
         }
 
-        // Parar simulação
-        async function stopSimulation() {
-            addLog('Enviando sinal para finalizar simulação...', 'warning');
-            
-            try {
-                const response = await fetch('/api/stop_simulation', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    addLog('Sinal de parada enviado com sucesso', 'success');
-                } else {
-                    addLog(`Erro ao enviar sinal de parada: ${data.error}`, 'error');
-                }
-            } catch (error) {
-                addLog(`Erro ao enviar sinal de parada: ${error.message}`, 'error');
-            }
-        }
         async function runSimulation() {
     const config = {
         approach: currentApproach,
@@ -622,7 +562,6 @@
     loading.classList.add('active');
     runBtn.disabled = true;
     runBtn.style.display = 'none';
-    stopBtn.style.display = 'inline-block';
 
     try {
         const response = await fetch('/api/simulate', {
@@ -652,7 +591,6 @@
         loading.classList.remove('active');
         runBtn.disabled = false;
         runBtn.style.display = 'inline-block';
-        stopBtn.style.display = 'none';
     }
 }
 
@@ -664,6 +602,7 @@ async function animateSimulation(states, metrics) {
     // Estado final já atualizado
 }
 
+// Atualizar visualização do grid
 function updateGrid(state) {
     const gridContainer = document.getElementById('gridDisplay');
     gridContainer.innerHTML = '';  // Limpa grid
@@ -673,15 +612,25 @@ function updateGrid(state) {
             const cell = document.createElement('div');
             cell.className = 'cell';
             
-            // Mostrar bombas sempre, outros elementos apenas se explorados
             let cellType;
-            if (state.grid[i][j] === 'B') {
-                cellType = 'B';  // Bombas sempre visíveis
-            } else if (state.explored[i][j]) {
-                cellType = state.grid[i][j];  // Elementos explorados
-            } else {
-                cellType = '?';  // Não explorado
+            
+            // ⭐ REGRA ESPECIAL: Na Abordagem C, bandeira é SEMPRE visível VISUALMENTE
+            if (currentApproach === 'C' && state.grid[i][j] === 'F') {
+                cellType = 'F';  // Mostrar bandeira no grid para o USUÁRIO ver
             }
+            // Bombas sempre visíveis (para visualização)
+            else if (state.grid[i][j] === 'B') {
+                cellType = 'B';
+            }
+            // Elementos explorados pelos agentes
+            else if (state.explored[i][j]) {
+                cellType = state.grid[i][j];
+            }
+            // Não explorado
+            else {
+                cellType = '?';
+            }
+            
             cell.textContent = cellType;
             
             // Cores baseadas no tipo visível
@@ -697,11 +646,10 @@ function updateGrid(state) {
     state.agents.forEach(agent => {
         if (agent.alive) {
             const index = agent.position[0] * 10 + agent.position[1];
-            gridContainer.children[index].textContent += ` ${AGENT_COLORS[agent.id]}`;  // Marca agente com emoji
+            gridContainer.children[index].textContent += ` ${AGENT_COLORS[agent.id]}`;
         }
     });
 }
-
         // Atualizar gráfico
         let executionChart = null;
 
@@ -747,7 +695,6 @@ function updateGrid(state) {
 
         // Event listeners
         runBtn.addEventListener('click', runSimulation);
-        stopBtn.addEventListener('click', stopSimulation);
 
         // Inicialização
         createGrid();

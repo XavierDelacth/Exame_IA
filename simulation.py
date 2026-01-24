@@ -10,6 +10,9 @@ from collections import deque
 import heapq
 from datetime import datetime
 
+# Cores para agentes na visualização
+AGENT_COLORS = ['🔴', '🔵', '🟡', '🟢', '🟣', '🟠', '⚪', '🟤', '🟥', '🟦']
+
 class Environment:
     """Ambiente 10x10 com células L, B, T e opcionalmente F"""
     
@@ -26,11 +29,18 @@ class Environment:
         self.shared_knowledge = {}  # {(x,y): 'L'/'B'/'T'/'F'}
         self.collect_states = False
         
+        #  NOVO: Armazenar posição da bandeira (apenas para referência, NÃO compartilhada)
+        self.flag_position = None
+        
         self._generate_environment()
+        
+        #  IMPORTANTE: NÃO adicionar bandeira ao shared_knowledge
+        # Os agentes devem DESCOBRIR a bandeira explorando
+
     
     def _generate_environment(self):
         """Gera ambiente aleatório garantindo factibilidade"""
-        max_attempts = 50  # Máximo de tentativas para gerar ambiente válido
+        max_attempts = 50
         
         for attempt in range(max_attempts):
             total_cells = self.size * self.size
@@ -41,10 +51,9 @@ class Environment:
             
             # Posicionar bombas (excluindo posição inicial 0,0)
             positions = [(i, j) for i in range(self.size) for j in range(self.size) 
-                        if not (i == 0 and j == 0)]  # Excluir (0,0)
+                        if not (i == 0 and j == 0)]
             np.random.shuffle(positions)
             
-            # Garantir que temos posições suficientes
             available_positions = min(len(positions), num_bombs)
             
             for i in range(available_positions):
@@ -58,23 +67,21 @@ class Environment:
                     x, y = treasure_positions[i]
                     self.grid[x, y] = 'T'
             
-            # Posicionar bandeira (apenas abordagem C)
+            # ⭐ MODIFICADO: Posicionar bandeira e armazenar posição (apenas abordagem C)
             if self.approach == 'C':
                 flag_positions = [p for p in positions if self.grid[p[0], p[1]] == 'L']
                 if flag_positions:
                     x, y = flag_positions[0]
                     self.grid[x, y] = 'F'
+                    self.flag_position = (x, y)  # ⭐ Apenas para referência interna
             
             # Verificar se o ambiente é factível
             if self.is_feasible():
                 break
         else:
-            # Se não conseguiu gerar ambiente factível após max_attempts,
-            # usar estratégia de fallback inteligente
-            print(f"Aviso: Não foi possível gerar ambiente factível após {max_attempts} tentativas. Usando estratégia de fallback inteligente.")
-            
-            # Estratégia de fallback: Criar ambiente garantidamente factível
+            print(f"Aviso: Não foi possível gerar ambiente factível após {max_attempts} tentativas.")
             self._create_guaranteed_feasible_environment()
+
     
     def get_cell(self, x, y):
         """Retorna conteúdo da célula"""
@@ -114,21 +121,14 @@ class Environment:
         
         # Reset grid
         self.grid = np.full((self.size, self.size), 'L', dtype='<U1')
-        
-        # Garantir que (0,0) seja seguro
         self.grid[0, 0] = 'L'
         
-        # Estratégia: Criar um caminho garantido do início até os objetivos
-        # Primeiro, criar um caminho principal usando BFS para garantir conectividade
-        
-        # Para abordagem A: Garantir pelo menos um tesouro alcançável
+        # Para abordagem A
         if self.approach == 'A':
-            # Criar caminho até um tesouro
-            treasure_pos = (self.size-1, self.size-1)  # Canto oposto
+            treasure_pos = (self.size-1, self.size-1)
             self._create_path_to_target((0, 0), treasure_pos)
             self.grid[treasure_pos[0], treasure_pos[1]] = 'T'
             
-            # Adicionar alguns tesouros extras em posições alcançáveis
             safe_positions = [(i, j) for i in range(self.size) for j in range(self.size) 
                             if self.grid[i, j] == 'L' and (i, j) != (0, 0)]
             if len(safe_positions) > 5:
@@ -136,39 +136,33 @@ class Environment:
                 for pos in treasure_positions:
                     self.grid[pos[0], pos[1]] = 'T'
         
-        # Para abordagem B: Garantir exploração ampla
+        # Para abordagem B
         elif self.approach == 'B':
-            # Criar vários caminhos para maximizar exploração
             targets = [(self.size-1, 0), (0, self.size-1), (self.size-1, self.size-1)]
             for target in targets:
                 self._create_path_to_target((0, 0), target)
         
-        # Para abordagem C: Garantir caminho até a bandeira
+        #  MODIFICADO: Para abordagem C - Armazenar posição da bandeira
         elif self.approach == 'C':
             flag_pos = (self.size-1, self.size-1)
             self._create_path_to_target((0, 0), flag_pos)
             self.grid[flag_pos[0], flag_pos[1]] = 'F'
+            self.flag_position = flag_pos  #  Apenas para referência interna
         
-        # Adicionar algumas bombas em posições que não bloqueiam o caminho principal
-        # Mas manter baixa densidade para garantir factibilidade
+        # Adicionar bombas (código permanece o mesmo)
         all_positions = [(i, j) for i in range(self.size) for j in range(self.size)]
         safe_positions = [pos for pos in all_positions if self.grid[pos[0], pos[1]] == 'L']
         
-        # Adicionar bombas apenas em posições que não são críticas
-        # Manter pelo menos 60% das células seguras
-        max_bombs = int(len(all_positions) * 0.3)  # Máximo 30% bombas
+        max_bombs = int(len(all_positions) * 0.3)
         bomb_candidates = [pos for pos in safe_positions if pos != (0, 0)]
         
-        # Filtrar posições que, se fossem bombas, ainda manteriam conectividade
         viable_bomb_positions = []
         for pos in bomb_candidates:
-            # Testar se remover esta posição ainda mantém conectividade
             temp_grid = self.grid.copy()
             temp_grid[pos[0], pos[1]] = 'B'
             if self._is_connected_after_removal(temp_grid, pos):
                 viable_bomb_positions.append(pos)
         
-        # Adicionar bombas viáveis (até max_bombs)
         bomb_positions = viable_bomb_positions[:max_bombs]
         for pos in bomb_positions:
             self.grid[pos[0], pos[1]] = 'B'
@@ -390,6 +384,8 @@ class Agent:
         self.treasures_found = 0
         self.steps_taken = 0
         self.bombs_activated = 0
+        self.bombs_deactivated = 0  # Rastreamento de bombas desativadas com proteção de tesouro
+        self.deactivated_bombs = set()  # Conjunto de posições (x,y) de bombas desativadas por este agente
         
         # Modelos de aprendizagem
         self.models = {
@@ -408,32 +404,40 @@ class Agent:
         self.labels = []
     
     def observe(self, environment, x, y):
-        """Cria vetor de features baseado na observação"""
+        """Cria vetor de features baseado na observação com comunicação inter-agentes"""
         features = []
         
         # Posição normalizada
         features.append(x / environment.size)
         features.append(y / environment.size)
         
-        # Informações dos vizinhos conhecidos
+        # Informações dos vizinhos conhecidos (comunicação inter-agentes)
         neighbors = environment.get_neighbors(x, y)
         bomb_neighbors = 0
         treasure_neighbors = 0
+        safe_neighbors = 0  # Células conhecidas como seguras
         unknown_neighbors = 0
         
         for nx, ny in neighbors:
-            if (nx, ny) in environment.shared_knowledge:
-                cell = environment.shared_knowledge[(nx, ny)]
+            neighbor_pos = (nx, ny)
+            if neighbor_pos in environment.shared_knowledge:
+                cell = environment.shared_knowledge[neighbor_pos]
                 if cell == 'B':
-                    bomb_neighbors += 1
-                elif cell == 'T':
+                    # Verifica se este agente desativou esta bomba
+                    if neighbor_pos in self.deactivated_bombs:
+                        safe_neighbors += 1  # Segura para mim
+                    else:
+                        bomb_neighbors += 1  # Perigosa para mim
+                elif cell in ['T', 'T_FOUND', 'F']:
                     treasure_neighbors += 1
+                elif cell == 'L':
+                    safe_neighbors += 1
             else:
                 unknown_neighbors += 1
         
         features.append(bomb_neighbors / 4)
         features.append(treasure_neighbors / 4)
-        features.append(unknown_neighbors / 4)
+        features.append(safe_neighbors / 4)  # Usar safe_neighbors ao invés de unknown
         
         # Distância até o centro
         center_dist = np.sqrt((x - environment.size/2)**2 + (y - environment.size/2)**2)
@@ -459,30 +463,71 @@ class Agent:
                 model.train(X, y)
     
     def decide_next_move(self, environment):
-        """Decide próximo movimento usando ensemble de modelos"""
+        """Decide próximo movimento usando ensemble de modelos com conhecimento compartilhado"""
         if not self.alive:
             return None
         
+        # ⭐ NOVO: Coletar todos os movimentos possíveis, incluindo células exploradas
+        # se não houver células não exploradas disponíveis
         possible_moves = []
+        unexplored_moves = []
+        
         for nx, ny in environment.get_neighbors(*self.position):
-            # Não revisitar células exploradas
             if not environment.explored[nx, ny]:
+                unexplored_moves.append((nx, ny))
+            else:
+                # Permitir revisitar células exploradas como último recurso
                 possible_moves.append((nx, ny))
         
-        if not possible_moves:
+        # ⭐ Priorizar células não exploradas
+        if unexplored_moves:
+            possible_moves = unexplored_moves
+        elif not possible_moves:
+            # Nenhum movimento possível
             return None
         
-        # Se modelos não estão treinados, escolher aleatoriamente
+        # Se modelos não estão treinados, escolher aleatoriamente priorizando segurança
         if not any(m.is_trained for m in self.models.values()):
+            # Priorizar movimento para células que já sabemos ser seguras (shared_knowledge)
+            known_safe = []
+            for move in possible_moves:
+                if move in environment.shared_knowledge:
+                    cell_info = environment.shared_knowledge[move]
+                    if cell_info in ['L', 'T', 'F']:
+                        known_safe.append(move)
+                    elif cell_info == 'B' and move in self.deactivated_bombs:
+                        known_safe.append(move)  # Bomba desativada por mim é segura
+            if known_safe:
+                return known_safe[np.random.randint(len(known_safe))]
+            # ⭐ NOVO: Se não há células conhecidas como seguras, escolher entre não exploradas
+            if unexplored_moves:
+                return unexplored_moves[np.random.randint(len(unexplored_moves))]
             return possible_moves[np.random.randint(len(possible_moves))]
         
         # Avaliar cada movimento possível
         move_scores = []
         for move in possible_moves:
+            # Bonus de segurança se conhecimento compartilhado indica célula segura
+            safety_bonus = 0
+            if move in environment.shared_knowledge:
+                cell_info = environment.shared_knowledge[move]
+                if cell_info in ['L', 'T', 'F']:
+                    safety_bonus = 2.0  # Muito seguro (já explorado por outro agente)
+                elif cell_info == 'B':
+                    # Verifica se ESTE agente desativou esta bomba
+                    if move in self.deactivated_bombs:
+                        safety_bonus = 2.0  # Seguro para mim (desativei)
+                    else:
+                        safety_bonus = -2.0  # Perigoso para outros (bomba ativa)
+            
+            # ⭐ NOVO: Penalizar células já exploradas para priorizar exploração
+            if environment.explored[move[0], move[1]]:
+                safety_bonus -= 1.0  # Penalidade por revisitar
+            
             obs = self.observe(environment, move[0], move[1]).reshape(1, -1)
             
             # Combinar predições dos modelos
-            ensemble_score = 0
+            ensemble_score = safety_bonus  # Começar com bonus de segurança
             total_weight = 0
             
             for model_name, model in self.models.items():
@@ -502,24 +547,43 @@ class Agent:
         # Escolher movimento com maior score
         best_idx = np.argmax(move_scores)
         return possible_moves[best_idx]
+
     
     def move(self, environment, target_pos):
-        """Move agente para nova posição"""
+        """Move agente para nova posição com comunicação de informações de segurança"""
         if not self.alive or target_pos is None:
             return None
         
         self.position = target_pos
         self.steps_taken += 1
         
+        # ⭐ NOVO: Verificar se célula já foi explorada
+        already_explored = environment.explored[target_pos[0], target_pos[1]]
+        
         # Marcar célula como explorada e obter resultado
         result = environment.mark_explored(*target_pos)
         
-        # Processar resultado
+        # ⭐ NOVO: Se já estava explorada, verificar se é uma bomba não desativada por este agente
+        if already_explored:
+            # Se é uma bomba que este agente não desativou, ele morre
+            if result == 'B' and target_pos not in self.deactivated_bombs:
+                self.alive = False
+                self.bombs_activated += 1
+                self.update_knowledge(environment, *target_pos, result)
+                return result
+            # Caso contrário, apenas atualizar conhecimento
+            self.update_knowledge(environment, *target_pos, result)
+            return result
+        
+        # Processar resultado (apenas para células recém-exploradas)
         if result == 'B':
             if self.has_treasure_protection:
-                # Proteção do tesouro desativa a bomba
+                # Proteção do tesouro desativa a bomba PARA ESTE AGENTE
                 self.has_treasure_protection = False
                 self.bombs_activated += 1
+                self.bombs_deactivated += 1
+                self.deactivated_bombs.add(target_pos)  # Registra bomba desativada individualmente
+                # NÃO sobrescreve shared_knowledge - outros agentes ainda veem como 'B'
             else:
                 # Agente é destruído
                 self.alive = False
@@ -527,12 +591,12 @@ class Agent:
         elif result == 'T':
             self.treasures_found += 1
             self.has_treasure_protection = True
+            environment.shared_knowledge[target_pos] = 'T_FOUND'
         
-        # Atualizar conhecimento
+        # Atualizar conhecimento próprio
         self.update_knowledge(environment, *target_pos, result)
         
         return result
-
 
 class ClassicAlgorithm:
     """Implementação de algoritmos clássicos de busca"""
@@ -683,8 +747,6 @@ class ClassicAlgorithm:
 
 
 class Simulation:
-    """Sistema principal de simulação"""
-    
     def __init__(self, approach='A', num_agents=2, bomb_ratio=0.5, 
                  group_type='homogeneous'):
         self.approach = approach
@@ -696,10 +758,12 @@ class Simulation:
         treasure_count = 10 if approach == 'A' else 0
         self.environment = Environment(bomb_ratio, treasure_count, approach, None)
         
+        # ⭐ NOVO: Marcar posição inicial como explorada
+        self.environment.mark_explored(0, 0)
+        
         # Estado da simulação
         self.collect_states = False
         self.states = []
-        self.force_stop = False  # Flag para parar simulação manualmente
         
         # Criar agentes
         self.agents = []
@@ -722,6 +786,7 @@ class Simulation:
             'treasures_found': 0,
             'success': False
         }
+
 
     def _get_current_state(self):
         """Retorna o estado atual do ambiente e agentes (para animação)"""
@@ -761,9 +826,10 @@ class Simulation:
             agent = Agent(i, start_position, weights)
             self.agents.append(agent)
     
-    def run(self, max_iterations=200):
-        """Executa simulação com opção de coletar estados intermediários"""
+    def run(self, max_iterations=200, timeout_seconds=30):
+        """Executa simulação com opção de coletar estados intermediários e timeout de segurança"""
         self.metrics['start_time'] = time.time()
+        timeout_deadline = self.metrics['start_time'] + timeout_seconds
         
         # Estado inicial (se animação ativada)
         if self.collect_states:
@@ -772,6 +838,11 @@ class Simulation:
         iteration = 0
         while iteration < max_iterations:
             iteration += 1
+            
+            # Verificar timeout de segurança
+            if time.time() > timeout_deadline:
+                print(f"[TIMEOUT] Simulação atingiu limite de tempo ({timeout_seconds}s) na iteração {iteration}")
+                break
             
             # Cada agente decide e move
             any_agent_moved = False
@@ -794,6 +865,7 @@ class Simulation:
                 break
         
         self.metrics['end_time'] = time.time()
+        self.metrics['iterations_executed'] = int(iteration)
         self._calculate_metrics()
         
         # Adiciona lista de estados no resultado final
@@ -803,12 +875,38 @@ class Simulation:
         return self.metrics
     
     def _check_termination(self):
-        """Verifica se simulação deve terminar - só termina quando todos agentes estão mortos ou forçada parada"""
+        """Verifica se simulação deve terminar baseado na abordagem"""
         # A simulação termina quando todos os agentes estão mortos OU quando é forçada a parar
         all_agents_dead = all(not agent.alive for agent in self.agents)
-    def stop_simulation(self):
-        """Força parada da simulação"""
-        self.force_stop = True
+        
+        # Verificações específicas por abordagem
+        if self.approach == 'A':
+            # Abordagem A: Termina se encontrou 50% dos tesouros OU se todos agentes foram destruídos
+            total_treasures = self.environment.count_treasures()
+            treasures_found = sum(a.treasures_found for a in self.agents)
+            if total_treasures > 0 and treasures_found >= total_treasures * 0.5:
+                return True
+            if all_agents_dead:
+                return True
+        
+        elif self.approach == 'B':
+            # Abordagem B: Termina se explorou 100% do ambiente
+            if self.environment.get_exploration_percentage() >= 100:
+                return True
+            if all_agents_dead:
+                return True
+        
+        elif self.approach == 'C':
+            # Abordagem C: Termina se encontrou a bandeira
+            for i in range(self.environment.size):
+                for j in range(self.environment.size):
+                    if self.environment.grid[i, j] == 'F' and self.environment.explored[i, j]:
+                        return True
+            if all_agents_dead:
+                return True
+        
+        # Termina se todos agentes mortos
+        return all_agents_dead
     
     def _calculate_metrics(self):
         """Calcula métricas finais"""
@@ -816,6 +914,7 @@ class Simulation:
         self.metrics['total_steps'] = int(sum(a.steps_taken for a in self.agents))
         self.metrics['exploration_percentage'] = float(self.environment.get_exploration_percentage())
         self.metrics['bombs_activated'] = int(sum(a.bombs_activated for a in self.agents))
+        self.metrics['bombs_deactivated'] = int(sum(a.bombs_deactivated for a in self.agents))
         self.metrics['agents_destroyed'] = int(sum(1 for a in self.agents if not a.alive))
         self.metrics['agents_alive'] = int(sum(1 for a in self.agents if a.alive))
         self.metrics['treasures_found'] = int(sum(a.treasures_found for a in self.agents))
@@ -823,7 +922,10 @@ class Simulation:
         # Definir sucesso baseado na abordagem
         if self.approach == 'A':
             total_treasures = int(self.environment.count_treasures())
-            self.metrics['success'] = bool(self.metrics['treasures_found'] > total_treasures * 0.5)
+            # Sucesso: encontrou pelo menos 50% dos tesouros OU todos agentes foram destruídos
+            treasures_threshold = total_treasures > 0 and self.metrics['treasures_found'] >= total_treasures * 0.5
+            all_destroyed = self.metrics['agents_destroyed'] >= self.num_agents
+            self.metrics['success'] = bool(treasures_threshold or all_destroyed)
             self.metrics['treasure_percentage'] = float((self.metrics['treasures_found'] / max(total_treasures, 1)) * 100)
         
         elif self.approach == 'B':

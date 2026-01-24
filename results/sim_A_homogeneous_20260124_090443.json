@@ -1,0 +1,2414 @@
+{
+  "config": {
+    "approach": "A",
+    "groupType": "homogeneous",
+    "numAgents": 5,
+    "bombRatio": 0.5
+  },
+  "metrics": {
+    "approach": "A",
+    "group_type": "homogeneous",
+    "num_agents": 5,
+    "bomb_ratio": 0.5,
+    "start_time": 1769245483.779271,
+    "end_time": 1769245483.78027,
+    "execution_time": 0.0009992122650146484,
+    "total_steps": 3,
+    "exploration_percentage": 3.0,
+    "bombs_activated": 1,
+    "agents_destroyed": 1,
+    "agents_alive": 4,
+    "treasures_found": 0,
+    "success": false,
+    "treasure_percentage": 0.0,
+    "states": [
+      {
+        "grid": [
+          [
+            "L",
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "B",
+            "B",
+            "T",
+            "L",
+            "T",
+            "L",
+            "L",
+            "L",
+            "L",
+            "L"
+          ],
+          [
+            "L",
+            "L",
+            "L",
+            "T",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "T",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "B",
+            "T",
+            "T",
+            "B",
+            "B",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "L"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "B",
+            "B",
+            "T",
+            "L",
+            "B",
+            "L",
+            "B"
+          ],
+          [
+            "B",
+            "L",
+            "B",
+            "L",
+            "T",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L"
+          ]
+        ],
+        "explored": [
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ]
+        ],
+        "agents": [
+          {
+            "id": 0,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 2,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 3,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 4,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          }
+        ]
+      },
+      {
+        "grid": [
+          [
+            "L",
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "B",
+            "B",
+            "T",
+            "L",
+            "T",
+            "L",
+            "L",
+            "L",
+            "L",
+            "L"
+          ],
+          [
+            "L",
+            "L",
+            "L",
+            "T",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "T",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "B",
+            "T",
+            "T",
+            "B",
+            "B",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "L"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "B",
+            "B",
+            "T",
+            "L",
+            "B",
+            "L",
+            "B"
+          ],
+          [
+            "B",
+            "L",
+            "B",
+            "L",
+            "T",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L"
+          ]
+        ],
+        "explored": [
+          [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ]
+        ],
+        "agents": [
+          {
+            "id": 0,
+            "position": [
+              1,
+              0
+            ],
+            "alive": false,
+            "treasures_found": 0,
+            "steps_taken": 1
+          },
+          {
+            "id": 1,
+            "position": [
+              0,
+              1
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 1
+          },
+          {
+            "id": 2,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 3,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 4,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          }
+        ]
+      },
+      {
+        "grid": [
+          [
+            "L",
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "B",
+            "B",
+            "T",
+            "L",
+            "T",
+            "L",
+            "L",
+            "L",
+            "L",
+            "L"
+          ],
+          [
+            "L",
+            "L",
+            "L",
+            "T",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "T",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "B",
+            "T",
+            "T",
+            "B",
+            "B",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "L"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "B",
+            "B",
+            "T",
+            "L",
+            "B",
+            "L",
+            "B"
+          ],
+          [
+            "B",
+            "L",
+            "B",
+            "L",
+            "T",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L"
+          ]
+        ],
+        "explored": [
+          [
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ]
+        ],
+        "agents": [
+          {
+            "id": 0,
+            "position": [
+              1,
+              0
+            ],
+            "alive": false,
+            "treasures_found": 0,
+            "steps_taken": 1
+          },
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 2
+          },
+          {
+            "id": 2,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 3,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 4,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          }
+        ]
+      },
+      {
+        "grid": [
+          [
+            "L",
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "B",
+            "B",
+            "T",
+            "L",
+            "T",
+            "L",
+            "L",
+            "L",
+            "L",
+            "L"
+          ],
+          [
+            "L",
+            "L",
+            "L",
+            "T",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "T",
+            "B",
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "B",
+            "T",
+            "T",
+            "B",
+            "B",
+            "B",
+            "B",
+            "L",
+            "B",
+            "B"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "L",
+            "B",
+            "L",
+            "B",
+            "B",
+            "B",
+            "T"
+          ],
+          [
+            "L",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L",
+            "B",
+            "B",
+            "B",
+            "L"
+          ],
+          [
+            "L",
+            "B",
+            "B",
+            "B",
+            "B",
+            "T",
+            "L",
+            "B",
+            "L",
+            "B"
+          ],
+          [
+            "B",
+            "L",
+            "B",
+            "L",
+            "T",
+            "B",
+            "L",
+            "B",
+            "L",
+            "L"
+          ]
+        ],
+        "explored": [
+          [
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ]
+        ],
+        "agents": [
+          {
+            "id": 0,
+            "position": [
+              1,
+              0
+            ],
+            "alive": false,
+            "treasures_found": 0,
+            "steps_taken": 1
+          },
+          {
+            "id": 1,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 2
+          },
+          {
+            "id": 2,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 3,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          },
+          {
+            "id": 4,
+            "position": [
+              0,
+              0
+            ],
+            "alive": true,
+            "treasures_found": 0,
+            "steps_taken": 0
+          }
+        ]
+      }
+    ]
+  },
+  "environment_states": [
+    {
+      "grid": [
+        [
+          "L",
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "B",
+          "B",
+          "T",
+          "L",
+          "T",
+          "L",
+          "L",
+          "L",
+          "L",
+          "L"
+        ],
+        [
+          "L",
+          "L",
+          "L",
+          "T",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "T",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "B",
+          "T",
+          "T",
+          "B",
+          "B",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "L"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "B",
+          "B",
+          "T",
+          "L",
+          "B",
+          "L",
+          "B"
+        ],
+        [
+          "B",
+          "L",
+          "B",
+          "L",
+          "T",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L"
+        ]
+      ],
+      "explored": [
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "agents": [
+        {
+          "id": 0,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 1,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 2,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 3,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 4,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        }
+      ]
+    },
+    {
+      "grid": [
+        [
+          "L",
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "B",
+          "B",
+          "T",
+          "L",
+          "T",
+          "L",
+          "L",
+          "L",
+          "L",
+          "L"
+        ],
+        [
+          "L",
+          "L",
+          "L",
+          "T",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "T",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "B",
+          "T",
+          "T",
+          "B",
+          "B",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "L"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "B",
+          "B",
+          "T",
+          "L",
+          "B",
+          "L",
+          "B"
+        ],
+        [
+          "B",
+          "L",
+          "B",
+          "L",
+          "T",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L"
+        ]
+      ],
+      "explored": [
+        [
+          false,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "agents": [
+        {
+          "id": 0,
+          "position": [
+            1,
+            0
+          ],
+          "alive": false,
+          "treasures_found": 0,
+          "steps_taken": 1
+        },
+        {
+          "id": 1,
+          "position": [
+            0,
+            1
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 1
+        },
+        {
+          "id": 2,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 3,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 4,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        }
+      ]
+    },
+    {
+      "grid": [
+        [
+          "L",
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "B",
+          "B",
+          "T",
+          "L",
+          "T",
+          "L",
+          "L",
+          "L",
+          "L",
+          "L"
+        ],
+        [
+          "L",
+          "L",
+          "L",
+          "T",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "T",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "B",
+          "T",
+          "T",
+          "B",
+          "B",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "L"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "B",
+          "B",
+          "T",
+          "L",
+          "B",
+          "L",
+          "B"
+        ],
+        [
+          "B",
+          "L",
+          "B",
+          "L",
+          "T",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L"
+        ]
+      ],
+      "explored": [
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "agents": [
+        {
+          "id": 0,
+          "position": [
+            1,
+            0
+          ],
+          "alive": false,
+          "treasures_found": 0,
+          "steps_taken": 1
+        },
+        {
+          "id": 1,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 2
+        },
+        {
+          "id": 2,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 3,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 4,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        }
+      ]
+    },
+    {
+      "grid": [
+        [
+          "L",
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "B",
+          "B",
+          "T",
+          "L",
+          "T",
+          "L",
+          "L",
+          "L",
+          "L",
+          "L"
+        ],
+        [
+          "L",
+          "L",
+          "L",
+          "T",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "T",
+          "B",
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "B",
+          "T",
+          "T",
+          "B",
+          "B",
+          "B",
+          "B",
+          "L",
+          "B",
+          "B"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "L",
+          "B",
+          "L",
+          "B",
+          "B",
+          "B",
+          "T"
+        ],
+        [
+          "L",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L",
+          "B",
+          "B",
+          "B",
+          "L"
+        ],
+        [
+          "L",
+          "B",
+          "B",
+          "B",
+          "B",
+          "T",
+          "L",
+          "B",
+          "L",
+          "B"
+        ],
+        [
+          "B",
+          "L",
+          "B",
+          "L",
+          "T",
+          "B",
+          "L",
+          "B",
+          "L",
+          "L"
+        ]
+      ],
+      "explored": [
+        [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "agents": [
+        {
+          "id": 0,
+          "position": [
+            1,
+            0
+          ],
+          "alive": false,
+          "treasures_found": 0,
+          "steps_taken": 1
+        },
+        {
+          "id": 1,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 2
+        },
+        {
+          "id": 2,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 3,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        },
+        {
+          "id": 4,
+          "position": [
+            0,
+            0
+          ],
+          "alive": true,
+          "treasures_found": 0,
+          "steps_taken": 0
+        }
+      ]
+    }
+  ],
+  "timestamp": "20260124_090443"
+}

@@ -12,9 +12,6 @@ from datetime import datetime
 # Importar classes do sistema principal
 from simulation import Simulation, run_baseline, run_experiment
 
-# Estado global para controlar simulações
-current_simulation = None
-
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
@@ -68,14 +65,7 @@ def simulate():
             sim = Simulation(approach, num_agents, bomb_ratio, group_type)
             sim.collect_states = True  # Ativar coleta de estados para animação
             
-            # Armazenar referência global para permitir parada
-            global current_simulation
-            current_simulation = sim
-            
             metrics = sim.run()
-            
-            # Limpar referência após conclusão
-            current_simulation = None
             
             # Usar estados coletados durante a simulação
             environment_states = sim.states
@@ -99,34 +89,6 @@ def simulate():
             'metrics': metrics,
             'environment_states': environment_states,
             'saved_to': result_file
-        })
-    
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/api/stop_simulation', methods=['POST'])
-def stop_simulation():
-    """
-    Endpoint para forçar parada da simulação atual
-    
-    Este endpoint sinaliza para a simulação em execução que deve parar
-    """
-    try:
-        global current_simulation
-        
-        if current_simulation is not None:
-            current_simulation.stop_simulation()
-            message = 'Sinal de parada enviado para simulação em execução'
-        else:
-            message = 'Nenhuma simulação em execução para parar'
-        
-        return jsonify({
-            'success': True,
-            'message': message
         })
     
     except Exception as e:
