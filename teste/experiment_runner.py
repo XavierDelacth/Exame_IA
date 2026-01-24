@@ -14,7 +14,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # Importar do arquivo principal
-from simulation import Simulation, run_experiment, run_baseline
+from simulation import Simulation, run_experiment
 
 def run_all_experiments():
     """Executa todos os experimentos configurados"""
@@ -82,7 +82,8 @@ def run_all_experiments():
         
         for bomb_ratio in bomb_ratios:
             for rep in range(repetitions):
-                metrics = run_baseline(approach, bomb_ratio, seed=rep)
+                sim = Simulation(approach=approach, num_agents=1, bomb_ratio=bomb_ratio, group_type='baseline', seed=rep)
+                metrics = sim.run()
                 metrics['repetition'] = rep
                 metrics['num_agents'] = 1
                 baseline_results.append(metrics)

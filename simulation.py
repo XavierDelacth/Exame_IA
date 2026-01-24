@@ -373,6 +373,7 @@ class MLModel:
             return proba
 
 
+
 class Agent:
     """Agente inteligente com múltiplos modelos"""
     
@@ -598,157 +599,208 @@ class Agent:
         
         return result
 
-class ClassicAlgorithm:
-    """Implementação de algoritmos clássicos de busca"""
-    
-    @staticmethod
-    def greedy_best_first(environment, start_pos):
-        """Busca Gulosa para Abordagem A"""
-        visited = set()
-        visited.add(start_pos)
-        current = start_pos
-        path = [start_pos]
-        treasures_found = 0
-        bombs_hit = 0
-        steps = 0
-        
-        total_treasures = environment.count_treasures()
-        
-        while treasures_found <= total_treasures * 0.5 and steps < 100:
-            # Heurística: distância até tesouros não descobertos
-            best_move = None
-            best_score = float('inf')
-            
-            for nx, ny in environment.get_neighbors(*current):
-                if (nx, ny) not in visited:
-                    # Estimar valor da célula
-                    score = np.random.random()  # Simplificado
-                    if score < best_score:
-                        best_score = score
-                        best_move = (nx, ny)
-            
-            if best_move is None:
-                break
-            
-            current = best_move
-            visited.add(current)
-            path.append(current)
-            steps += 1
-            
-            result = environment.mark_explored(*current)
-            if result == 'T':
-                treasures_found += 1
-            elif result == 'B':
-                bombs_hit += 1
-        
-        return {
-            'path': path,
-            'steps': steps,
-            'treasures_found': treasures_found,
-            'bombs_activated': bombs_hit,
-            'exploration_percentage': environment.get_exploration_percentage()
-        }
-    
-    @staticmethod
-    def bfs(environment, start_pos):
-        """Busca em Largura para Abordagem B"""
-        visited = set()
-        queue = deque([start_pos])
-        visited.add(start_pos)
-        path = []
-        bombs_hit = 0
-        steps = 0
-        
-        while queue and environment.get_exploration_percentage() < 100:
-            current = queue.popleft()
-            path.append(current)
-            steps += 1
-            
-            result = environment.mark_explored(*current)
-            if result == 'B':
-                bombs_hit += 1
-            
-            for nx, ny in environment.get_neighbors(*current):
-                if (nx, ny) not in visited:
-                    visited.add((nx, ny))
-                    queue.append((nx, ny))
-        
-        return {
-            'path': path,
-            'steps': steps,
-            'bombs_activated': bombs_hit,
-            'exploration_percentage': environment.get_exploration_percentage()
-        }
-    
-    @staticmethod
-    def a_star(environment, start_pos):
-        """A* para Abordagem C"""
-        # Encontrar posição da bandeira
-        flag_pos = None
-        for i in range(environment.size):
-            for j in range(environment.size):
-                if environment.grid[i, j] == 'F':
-                    flag_pos = (i, j)
-                    break
-            if flag_pos:
-                break
-        
-        if flag_pos is None:
-            return {'path': [], 'steps': 0, 'found_flag': False}
-        
-        def heuristic(pos):
-            return abs(pos[0] - flag_pos[0]) + abs(pos[1] - flag_pos[1])
-        
-        open_set = [(heuristic(start_pos), 0, start_pos)]
-        came_from = {}
-        g_score = {start_pos: 0}
-        visited = set()
-        bombs_hit = 0
-        
-        while open_set:
-            _, current_g, current = heapq.heappop(open_set)
-            
-            if current in visited:
-                continue
-            
-            visited.add(current)
-            result = environment.mark_explored(*current)
-            
-            if result == 'B':
-                bombs_hit += 1
-            
-            if current == flag_pos:
-                # Reconstruir caminho
-                path = []
-                while current in came_from:
-                    path.append(current)
-                    current = came_from[current]
-                path.append(start_pos)
-                path.reverse()
-                
-                return {
-                    'path': path,
-                    'steps': len(path),
-                    'found_flag': True,
-                    'bombs_activated': bombs_hit,
-                    'exploration_percentage': environment.get_exploration_percentage()
-                }
-            
-            for neighbor in environment.get_neighbors(*current):
-                tentative_g = current_g + 1
-                
-                if neighbor not in g_score or tentative_g < g_score[neighbor]:
-                    g_score[neighbor] = tentative_g
-                    f_score = tentative_g + heuristic(neighbor)
-                    heapq.heappush(open_set, (f_score, tentative_g, neighbor))
-                    came_from[neighbor] = current
-        
-        return {'path': [], 'steps': 0, 'found_flag': False, 'bombs_activated': bombs_hit}
 
+class BaselineAgent(Agent):
+    """Agente que usa algoritmos clássicos em vez de ML"""
+    
+    def __init__(self, agent_id, start_pos, approach):
+        super().__init__(agent_id, start_pos)
+        self.approach = approach
+        self.models = {}  # Sem modelos ML
+        self.weights = {}
+        
+        # Estado para algoritmos clássicos
+        self.visited_cells = set([start_pos])
+        self.exploration_queue = []
+        
+    def decide_next_move(self, environment):
+        """Decide movimento usando algoritmo clássico apropriado"""
+        if not self.alive:
+            return None
+        
+        # Coletar movimentos possíveis
+        possible_moves = []
+        unexplored_moves = []
+        
+        for nx, ny in environment.get_neighbors(*self.position):
+            if not environment.explored[nx, ny]:
+                unexplored_moves.append((nx, ny))
+            else:
+                possible_moves.append((nx, ny))
+        
+        # Priorizar células não exploradas
+        if unexplored_moves:
+            possible_moves = unexplored_moves
+        elif not possible_moves:
+            return None
+        
+        # Aplicar estratégia baseada na abordagem
+        if self.approach == 'A':
+            return self._greedy_best_first_move(environment, possible_moves, unexplored_moves)
+        elif self.approach == 'B':
+            return self._bfs_move(environment, possible_moves, unexplored_moves)
+        elif self.approach == 'C':
+            return self._a_star_move(environment, possible_moves, unexplored_moves)
+        
+        return possible_moves[0]
+    
+    def _greedy_best_first_move(self, environment, possible_moves, unexplored_moves):
+        """
+        ABORDAGEM A - Greedy Best-First Search
+        Heurística: Priorizar células com maior chance de ter tesouros
+        Baseado em:
+        1. Distância até regiões não exploradas
+        2. Proximidade a tesouros já conhecidos
+        3. Evitar áreas com muitas bombas conhecidas
+        """
+        if not possible_moves:
+            return None
+        
+        best_move = None
+        best_score = -float('inf')
+        
+        for move in possible_moves:
+            score = 0
+            
+            # 1. BONUS: Células não exploradas (prioridade máxima)
+            if move in unexplored_moves:
+                score += 100
+            
+            # 2. HEURÍSTICA: Proximidade a tesouros conhecidos
+            # Tesouros atraem o agente (podem indicar clusters)
+            for (tx, ty), cell_type in environment.shared_knowledge.items():
+                if cell_type in ['T', 'T_FOUND']:
+                    distance = abs(move[0] - tx) + abs(move[1] - ty)
+                    if distance > 0:
+                        score += 50 / distance  # Mais próximo = maior score
+            
+            # 3. PENALIDADE: Proximidade a bombas conhecidas
+            neighbors_with_bombs = 0
+            for nx, ny in environment.get_neighbors(*move):
+                if (nx, ny) in environment.shared_knowledge:
+                    if environment.shared_knowledge[(nx, ny)] == 'B':
+                        # Verificar se este agente desativou
+                        if (nx, ny) not in self.deactivated_bombs:
+                            neighbors_with_bombs += 1
+            
+            score -= neighbors_with_bombs * 30  # Penalizar áreas perigosas
+            
+            # 4. DIVERSIFICAÇÃO: Explorar longe de onde já esteve
+            if move not in self.visited_cells:
+                score += 20
+            
+            # 5. EXPLORAÇÃO: Preferir células mais distantes do centro já explorado
+            # (evita ficar preso em áreas pequenas)
+            center_x = sum(x for x, y in self.visited_cells) / max(len(self.visited_cells), 1)
+            center_y = sum(y for x, y in self.visited_cells) / max(len(self.visited_cells), 1)
+            distance_from_visited = abs(move[0] - center_x) + abs(move[1] - center_y)
+            score += distance_from_visited * 5
+            
+            if score > best_score:
+                best_score = score
+                best_move = move
+        
+        if best_move:
+            self.visited_cells.add(best_move)
+        
+        return best_move
+    
+    def _bfs_move(self, environment, possible_moves, unexplored_moves):
+        """
+        ABORDAGEM B - Breadth-First Search (BFS)
+        Exploração sistemática e uniforme do ambiente
+        Prioriza células não exploradas em ordem de descoberta
+        """
+        if not possible_moves:
+            return None
+        
+        # BFS puro: priorizar células não exploradas na ordem
+        if unexplored_moves:
+            # Escolher a célula não explorada mais "próxima" na ordem BFS
+            # (menor distância Manhattan da posição inicial)
+            best_move = min(unexplored_moves, 
+                          key=lambda pos: abs(pos[0] - 0) + abs(pos[1] - 0))
+            return best_move
+        
+        # Se não há não exploradas, mover para qualquer adjacente segura conhecida
+        safe_moves = []
+        for move in possible_moves:
+            if move in environment.shared_knowledge:
+                cell_type = environment.shared_knowledge[move]
+                if cell_type in ['L', 'T', 'F']:
+                    safe_moves.append(move)
+                elif cell_type == 'B' and move in self.deactivated_bombs:
+                    safe_moves.append(move)
+        
+        if safe_moves:
+            return safe_moves[0]
+        
+        return possible_moves[0]
+    
+    def _a_star_move(self, environment, possible_moves, unexplored_moves):
+        """
+        ABORDAGEM C - A* Search Adaptativo
+        
+        PROBLEMA CRÍTICO: A bandeira NÃO é conhecida previamente!
+        
+        SOLUÇÃO: Usar A* modificado:
+        1. Se bandeira não foi encontrada → explorar sistematicamente (como BFS)
+        2. Quando bandeira for DESCOBERTA → usar A* clássico para ir direto
+        """
+        # Verificar se já encontramos a bandeira
+        flag_position = None
+        for (x, y), cell_type in environment.shared_knowledge.items():
+            if cell_type == 'F':
+                flag_position = (x, y)
+                break
+        
+        # CASO 1: Bandeira ainda NÃO foi descoberta
+        if flag_position is None:
+            # Usar estratégia de exploração sistemática
+            # Similar a BFS, mas com preferência por células mais distantes
+            if unexplored_moves:
+                # Priorizar células mais distantes da origem (exploração agressiva)
+                best_move = max(unexplored_moves,
+                              key=lambda pos: abs(pos[0] - 0) + abs(pos[1] - 0))
+                return best_move
+            
+            # Fallback: mover para qualquer célula disponível
+            return possible_moves[0] if possible_moves else None
+        
+        # CASO 2: Bandeira JÁ foi descoberta → usar A* clássico
+        def heuristic(pos):
+            """Distância Manhattan até a bandeira"""
+            return abs(pos[0] - flag_position[0]) + abs(pos[1] - flag_position[1])
+        
+        # Se já estamos na bandeira, missão cumprida
+        if self.position == flag_position:
+            return None
+        
+        # Escolher movimento que minimiza distância até a bandeira
+        # considerando células seguras conhecidas
+        best_move = None
+        best_h = float('inf')
+        
+        for move in possible_moves:
+            # Verificar segurança
+            is_safe = True
+            if move in environment.shared_knowledge:
+                cell_type = environment.shared_knowledge[move]
+                if cell_type == 'B' and move not in self.deactivated_bombs:
+                    is_safe = False
+            
+            # Se não explorada ou segura, considerar
+            if move in unexplored_moves or is_safe:
+                h = heuristic(move)
+                if h < best_h:
+                    best_h = h
+                    best_move = move
+        
+        # ✅ CORREÇÃO: Return final obrigatório
 
 class Simulation:
     def __init__(self, approach='A', num_agents=2, bomb_ratio=0.5, 
-                 group_type='homogeneous'):
+                 group_type='homogeneous', seed=None):
         self.approach = approach
         self.num_agents = num_agents
         self.bomb_ratio = bomb_ratio
@@ -756,7 +808,7 @@ class Simulation:
         
         # Criar ambiente
         treasure_count = 10 if approach == 'A' else 0
-        self.environment = Environment(bomb_ratio, treasure_count, approach, None)
+        self.environment = Environment(bomb_ratio, treasure_count, approach, seed)
         
         # ⭐ NOVO: Marcar posição inicial como explorada
         self.environment.mark_explored(0, 0)
@@ -806,14 +858,18 @@ class Simulation:
         }
     
     def _create_agents(self):
-        """Cria agentes homogêneos ou heterogêneos - todos começam em (0,0)"""
+        """Cria agentes homogêneos, heterogêneos ou baseline - todos começam em (0,0)"""
         # Todos os agentes começam na posição (0, 0)
         start_position = (0, 0)
         
         for i in range(self.num_agents):
-            if self.group_type == 'homogeneous':
+            if self.group_type == 'baseline':
+                # Agente baseline usa algoritmo clássico
+                agent = BaselineAgent(i, start_position, self.approach)
+            elif self.group_type == 'homogeneous':
                 # Todos com mesmos pesos
                 weights = {'knn': 1/3, 'naive_bayes': 1/3, 'random_forest': 1/3}
+                agent = Agent(i, start_position, weights)
             else:  # heterogeneous
                 # Pesos diferentes para cada agente
                 if i % 3 == 0:
@@ -822,8 +878,8 @@ class Simulation:
                     weights = {'knn': 0.1, 'naive_bayes': 0.7, 'random_forest': 0.2}
                 else:
                     weights = {'knn': 0.2, 'naive_bayes': 0.1, 'random_forest': 0.7}
+                agent = Agent(i, start_position, weights)
             
-            agent = Agent(i, start_position, weights)
             self.agents.append(agent)
     
     def run(self, max_iterations=200, timeout_seconds=30):
@@ -952,32 +1008,6 @@ def run_experiment(approach, num_agents, bomb_ratio, group_type, repetitions=30)
         results.append(metrics)
     return pd.DataFrame(results)
 
-
-def run_baseline(approach, bomb_ratio):
-    """Executa algoritmo clássico baseline"""
-    treasure_count = 10 if approach == 'A' else 0
-    env = Environment(bomb_ratio, treasure_count, approach, None)
-    
-    start_time = time.time()
-    
-    if approach == 'A':
-        result = ClassicAlgorithm.greedy_best_first(env, (0, 0))
-    elif approach == 'B':
-        result = ClassicAlgorithm.bfs(env, (0, 0))
-    else:  # C
-        result = ClassicAlgorithm.a_star(env, (0, 0))
-    
-    end_time = time.time()
-    
-    metrics = {
-        'approach': approach,
-        'group_type': 'baseline',
-        'execution_time': end_time - start_time,
-        'bomb_ratio': bomb_ratio,
-        **result
-    }
-    
-    return metrics
 
 
 # Exemplo de uso

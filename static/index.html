@@ -575,8 +575,10 @@
             throw new Error(data.error);
         }
 
-        // Anima os estados
-        await animateSimulation(data.environment_states, data.metrics);
+        // Anima os estados (apenas se houver estados para animar)
+        if (data.environment_states) {
+            await animateSimulation(data.environment_states, data.metrics);
+        }
 
         addLog(`Simulação concluída!`, 'success');
         addLog(`Taxa de sucesso: ${data.metrics.success ? 'SIM' : 'NÃO'}`, data.metrics.success ? 'success' : 'error');

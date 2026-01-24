@@ -1,0 +1,134 @@
+{
+  "config": {
+    "approach": "A",
+    "groupType": "baseline",
+    "numAgents": 3,
+    "bombRatio": 0.5
+  },
+  "metrics": {
+    "approach": "A",
+    "group_type": "baseline",
+    "execution_time": 0.0020215511322021484,
+    "bomb_ratio": 0.5,
+    "path": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        3,
+        0
+      ],
+      [
+        3,
+        1
+      ],
+      [
+        4,
+        1
+      ],
+      [
+        5,
+        1
+      ],
+      [
+        5,
+        0
+      ],
+      [
+        6,
+        0
+      ],
+      [
+        7,
+        0
+      ],
+      [
+        8,
+        0
+      ],
+      [
+        9,
+        0
+      ],
+      [
+        9,
+        1
+      ],
+      [
+        9,
+        2
+      ],
+      [
+        8,
+        2
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        7,
+        3
+      ],
+      [
+        7,
+        4
+      ],
+      [
+        8,
+        4
+      ],
+      [
+        8,
+        5
+      ],
+      [
+        7,
+        5
+      ],
+      [
+        7,
+        6
+      ],
+      [
+        7,
+        7
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        9,
+        7
+      ],
+      [
+        9,
+        6
+      ],
+      [
+        8,
+        6
+      ]
+    ],
+    "steps": 26,
+    "treasures_found": 3,
+    "bombs_activated": 18,
+    "exploration_percentage": 26.0,
+    "success": true,
+    "total_steps": 26,
+    "agents_alive": 1,
+    "num_agents": 1
+  },
+  "environment_states": null,
+  "timestamp": "20260124_174950"
+}
