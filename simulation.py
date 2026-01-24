@@ -6,12 +6,427 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 import json
 import time
-from collections import deque
+from collections import deque, defaultdict
 import heapq
 from datetime import datetime
 
 # Cores para agentes na visualização
 AGENT_COLORS = ['🔴', '🔵', '🟡', '🟢', '🟣', '🟠', '⚪', '🟤', '🟥', '🟦']
+
+class CommunicationHub:
+    """
+    Hub central de comunicação entre agentes
+    
+    Responsabilidades:
+    - Armazenar conhecimento global compartilhado
+    - Facilitar troca de mensagens entre agentes
+    - Coordenar estratégias coletivas
+    - Mapear territórios explorados
+    """
+    
+    def __init__(self, environment_size=10):
+        self.size = environment_size
+        
+        # ===== CONHECIMENTO COMPARTILHADO =====
+        
+        # Mapa de exploração: {(x,y): [agent_ids que passaram]}
+        self.exploration_map = defaultdict(list)
+        
+        # Células seguras confirmadas: {(x,y): 'L'/'T'/'F'}
+        self.safe_cells = {}
+        
+        # Células perigosas confirmadas: {(x,y): 'B'}
+        self.danger_cells = {}
+        
+        # Tesouros encontrados: {(x,y): agent_id_que_encontrou}
+        self.treasures_found = {}
+        
+        # Bombas desativadas: {(x,y): agent_id_que_desativou}
+        self.bombs_deactivated = {}
+        
+        # ===== ROTAS E CAMINHOS =====
+        
+        # Rotas seguras conhecidas: [(x1,y1), (x2,y2), ...]
+        self.safe_routes = []
+        
+        # Caminhos individuais: {agent_id: [(x,y), ...]}
+        self.agent_paths = defaultdict(list)
+        
+        # ===== COORDENAÇÃO =====
+        
+        # Território atribuído: {agent_id: [(x,y), ...]}
+        self.territory_assignments = {}
+        
+        # Alvos prioritários: [(x,y), prioridade, tipo]
+        self.priority_targets = []
+        
+        # Áreas bloqueadas (sem saída): {(x,y)}
+        self.blocked_areas = set()
+        
+        # ===== MENSAGENS =====
+        
+        # Histórico de mensagens: [{timestamp, sender, type, data}]
+        self.message_history = []
+        
+        # Fila de mensagens pendentes: {agent_id: [messages]}
+        self.message_queue = defaultdict(list)
+        
+        # ===== ESTATÍSTICAS =====
+        
+        self.stats = {
+            'total_messages': 0,
+            'cells_explored': 0,
+            'safe_cells_found': 0,
+            'dangers_found': 0,
+            'treasures_discovered': 0,
+            'coordination_events': 0
+        }
+    
+    # ========================================================================
+    # MÉTODOS DE REGISTRO DE DESCOBERTAS
+    # ========================================================================
+    
+    def register_cell_visit(self, agent_id, position, cell_type):
+        """
+        Registra visita de um agente a uma célula
+        
+        Args:
+            agent_id: ID do agente
+            position: (x, y) da célula
+            cell_type: 'L', 'B', 'T', 'F'
+        """
+        x, y = position
+        
+        # Registrar no mapa de exploração
+        if agent_id not in self.exploration_map[position]:
+            self.exploration_map[position].append(agent_id)
+            self.stats['cells_explored'] += 1
+        
+        # Adicionar ao caminho do agente
+        if position not in self.agent_paths[agent_id]:
+            self.agent_paths[agent_id].append(position)
+        
+        # Classificar célula
+        if cell_type == 'B':
+            self.danger_cells[position] = 'B'
+            self.stats['dangers_found'] += 1
+            self._broadcast_danger_alert(agent_id, position)
+        
+        elif cell_type in ['L', 'T', 'F']:
+            self.safe_cells[position] = cell_type
+            self.stats['safe_cells_found'] += 1
+            
+            if cell_type == 'T':
+                self.treasures_found[position] = agent_id
+                self.stats['treasures_discovered'] += 1
+                self._broadcast_treasure_found(agent_id, position)
+    
+    def register_bomb_deactivation(self, agent_id, position):
+        """Registra desativação de bomba (com proteção de tesouro)"""
+        self.bombs_deactivated[position] = agent_id
+        self._broadcast_message(agent_id, 'bomb_deactivated', {
+            'position': position,
+            'safe_for': agent_id
+        })
+    
+    def register_blocked_area(self, position):
+        """Marca área como bloqueada (sem saída)"""
+        self.blocked_areas.add(position)
+    
+    # ========================================================================
+    # MÉTODOS DE CONSULTA DE INFORMAÇÃO
+    # ========================================================================
+    
+    def get_safe_cells(self):
+        """Retorna todas as células seguras conhecidas"""
+        return dict(self.safe_cells)
+    
+    def get_danger_cells(self):
+        """Retorna todas as células perigosas conhecidas"""
+        return dict(self.danger_cells)
+    
+    def get_unexplored_neighbors(self, position, environment):
+        """
+        Retorna vizinhos não explorados de uma posição
+        
+        Args:
+            position: (x, y)
+            environment: objeto Environment
+            
+        Returns:
+            [(x, y), ...] células não exploradas
+        """
+        x, y = position
+        unexplored = []
+        
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+            if (0 <= nx < self.size and 0 <= ny < self.size):
+                if (nx, ny) not in self.exploration_map:
+                    unexplored.append((nx, ny))
+        
+        return unexplored
+    
+    def get_agent_territory(self, agent_id):
+        """Retorna território atribuído a um agente"""
+        return self.territory_assignments.get(agent_id, [])
+    
+    def is_cell_safe_for_agent(self, agent_id, position):
+        """
+        Verifica se célula é segura para um agente específico
+        
+        Considera:
+        - Células conhecidas como seguras
+        - Bombas desativadas pelo próprio agente
+        """
+        # Célula segura global
+        if position in self.safe_cells:
+            return True
+        
+        # Bomba desativada por este agente
+        if position in self.bombs_deactivated:
+            if self.bombs_deactivated[position] == agent_id:
+                return True
+        
+        # Célula perigosa para este agente
+        if position in self.danger_cells:
+            return False
+        
+        # Desconhecida
+        return None  # Incerto
+    
+    def is_cell_explored(self, position):
+        """Verifica se célula já foi explorada por algum agente"""
+        return position in self.exploration_map
+    
+    def is_cell_safe(self, position):
+        """Verifica se célula é conhecida como segura"""
+        return position in self.safe_cells
+    
+    def is_bomb_active(self, position):
+        """Verifica se há bomba ativa conhecida na célula"""
+        return position in self.danger_cells and position not in self.bombs_deactivated
+    
+    def get_safe_route_to(self, start, goal):
+        """
+        Encontra rota segura entre dois pontos usando células conhecidas
+        
+        Returns:
+            [(x,y), ...] ou None se não encontrar
+        """
+        from collections import deque
+        
+        if start == goal:
+            return [start]
+        
+        # BFS apenas em células seguras conhecidas
+        queue = deque([(start, [start])])
+        visited = {start}
+        
+        while queue:
+            current, path = queue.popleft()
+            
+            if current == goal:
+                return path
+            
+            x, y = current
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                neighbor = (nx, ny)
+                
+                if neighbor not in visited:
+                    # Apenas células seguras conhecidas
+                    if neighbor in self.safe_cells:
+                        visited.add(neighbor)
+                        queue.append((neighbor, path + [neighbor]))
+        
+        return None  # Sem rota segura conhecida
+    
+    # ========================================================================
+    # MÉTODOS DE MENSAGENS
+    # ========================================================================
+    
+    def _broadcast_message(self, sender_id, msg_type, data):
+        """Envia mensagem broadcast para todos os agentes"""
+        message = {
+            'timestamp': datetime.now().isoformat(),
+            'sender': sender_id,
+            'type': msg_type,
+            'data': data
+        }
+        
+        self.message_history.append(message)
+        self.stats['total_messages'] += 1
+        
+        # Adicionar a todas as filas (exceto sender)
+        for agent_id in self.agent_paths.keys():
+            if agent_id != sender_id:
+                self.message_queue[agent_id].append(message)
+    
+    def _broadcast_danger_alert(self, sender_id, position):
+        """Alerta de perigo encontrado"""
+        self._broadcast_message(sender_id, 'danger_alert', {
+            'position': position,
+            'warning': 'Bomba detectada!'
+        })
+    
+    def _broadcast_treasure_found(self, sender_id, position):
+        """Alerta de tesouro encontrado"""
+        self._broadcast_message(sender_id, 'treasure_found', {
+            'position': position,
+            'finder': sender_id
+        })
+    
+    def send_direct_message(self, sender_id, receiver_id, msg_type, data):
+        """Envia mensagem direta entre dois agentes"""
+        message = {
+            'timestamp': datetime.now().isoformat(),
+            'sender': sender_id,
+            'receiver': receiver_id,
+            'type': msg_type,
+            'data': data
+        }
+        
+        self.message_queue[receiver_id].append(message)
+        self.stats['total_messages'] += 1
+    
+    def get_messages(self, agent_id):
+        """Recupera mensagens pendentes de um agente"""
+        messages = self.message_queue[agent_id].copy()
+        self.message_queue[agent_id].clear()
+        return messages
+    
+    # ========================================================================
+    # MÉTODOS DE COORDENAÇÃO ESTRATÉGICA
+    # ========================================================================
+    
+    def assign_territories(self, agent_ids, approach='grid'):
+        """
+        Divide ambiente em territórios para cada agente
+        
+        Estratégias:
+        - 'grid': divisão em grade
+        - 'quadrant': divisão em quadrantes
+        - 'dynamic': baseado em posição atual
+        """
+        if approach == 'grid':
+            self._assign_grid_territories(agent_ids)
+        elif approach == 'quadrant':
+            self._assign_quadrant_territories(agent_ids)
+        else:
+            self._assign_dynamic_territories(agent_ids)
+        
+        self.stats['coordination_events'] += 1
+    
+    def _assign_grid_territories(self, agent_ids):
+        """Divisão em faixas horizontais"""
+        num_agents = len(agent_ids)
+        rows_per_agent = self.size // num_agents
+        
+        for i, agent_id in enumerate(agent_ids):
+            start_row = i * rows_per_agent
+            end_row = start_row + rows_per_agent if i < num_agents - 1 else self.size
+            
+            territory = []
+            for x in range(start_row, end_row):
+                for y in range(self.size):
+                    territory.append((x, y))
+            
+            self.territory_assignments[agent_id] = territory
+    
+    def _assign_quadrant_territories(self, agent_ids):
+        """Divisão em quadrantes"""
+        num_agents = len(agent_ids)
+        mid = self.size // 2
+        
+        quadrants = [
+            [(x, y) for x in range(mid) for y in range(mid)],           # Q1
+            [(x, y) for x in range(mid) for y in range(mid, self.size)], # Q2
+            [(x, y) for x in range(mid, self.size) for y in range(mid)], # Q3
+            [(x, y) for x in range(mid, self.size) for y in range(mid, self.size)] # Q4
+        ]
+        
+        for i, agent_id in enumerate(agent_ids):
+            if i < len(quadrants):
+                self.territory_assignments[agent_id] = quadrants[i]
+    
+    def _assign_dynamic_territories(self, agent_ids):
+        """Atribuição dinâmica baseada em exploração"""
+        # Cada agente continua explorando sua vizinhança
+        # (implementação mais complexa - omitida por simplicidade)
+        pass
+    
+    def suggest_next_target(self, agent_id, current_position, approach):
+        """
+        Sugere próximo alvo para um agente baseado em:
+        - Células não exploradas no território
+        - Objetivos da abordagem (A, B, C)
+        - Coordenação com outros agentes
+        
+        Returns:
+            (x, y) ou None
+        """
+        territory = self.get_agent_territory(agent_id)
+        
+        # Encontrar células não exploradas no território
+        unexplored_in_territory = [
+            cell for cell in territory 
+            if cell not in self.exploration_map
+        ]
+        
+        if not unexplored_in_territory:
+            # Território completo - explorar fora
+            unexplored_in_territory = [
+                (x, y) for x in range(self.size) for y in range(self.size)
+                if (x, y) not in self.exploration_map
+            ]
+        
+        if not unexplored_in_territory:
+            return None
+        
+        # Escolher célula mais próxima
+        def distance(pos):
+            return abs(pos[0] - current_position[0]) + abs(pos[1] - current_position[1])
+        
+        return min(unexplored_in_territory, key=distance)
+    
+    # ========================================================================
+    # MÉTODOS DE ANÁLISE
+    # ========================================================================
+    
+    def get_exploration_heatmap(self):
+        """
+        Retorna mapa de calor de exploração
+        
+        Returns:
+            numpy array 10x10 com contagem de visitas
+        """
+        heatmap = np.zeros((self.size, self.size), dtype=int)
+        
+        for (x, y), agents in self.exploration_map.items():
+            heatmap[x, y] = len(agents)
+        
+        return heatmap
+    
+    def get_communication_stats(self):
+        """Retorna estatísticas de comunicação"""
+        return {
+            **self.stats,
+            'unique_cells_explored': len(self.exploration_map),
+            'safe_routes_known': len(self.safe_routes),
+            'active_agents': len(self.agent_paths),
+            'messages_in_queue': sum(len(q) for q in self.message_queue.values())
+        }
+    
+    def export_knowledge_base(self):
+        """Exporta base de conhecimento como JSON"""
+        return {
+            'safe_cells': {str(k): v for k, v in self.safe_cells.items()},
+            'danger_cells': {str(k): v for k, v in self.danger_cells.items()},
+            'treasures_found': {str(k): v for k, v in self.treasures_found.items()},
+            'exploration_coverage': len(self.exploration_map) / (self.size * self.size) * 100,
+            'stats': self.get_communication_stats()
+        }
 
 class Environment:
     """Ambiente 10x10 com células L, B, T e opcionalmente F"""
@@ -26,8 +441,11 @@ class Environment:
         self.treasure_count = treasure_count if approach != 'B' else 0
         self.approach = approach
         self.explored = np.zeros((self.size, self.size), dtype=bool)
-        self.shared_knowledge = {}  # {(x,y): 'L'/'B'/'T'/'F'}
+        self.shared_knowledge = {}  # {(x,y): 'L'/'B'/'T'/'F'} - LEGACY: manter para compatibilidade
         self.collect_states = False
+        
+        # ⭐ NOVO: Sistema de comunicação explícito
+        self.communication_hub = CommunicationHub()
         
         #  NOVO: Armazenar posição da bandeira (apenas para referência, NÃO compartilhada)
         self.flag_position = None
@@ -464,78 +882,85 @@ class Agent:
                 model.train(X, y)
     
     def decide_next_move(self, environment):
-        """Decide próximo movimento usando ensemble de modelos com conhecimento compartilhado"""
+        """Decide próximo movimento usando ensemble de modelos com comunicação explícita"""
         if not self.alive:
             return None
         
-        # ⭐ NOVO: Coletar todos os movimentos possíveis, incluindo células exploradas
-        # se não houver células não exploradas disponíveis
+        # ⭐ NOVO: Usar CommunicationHub para priorizar células
         possible_moves = []
         unexplored_moves = []
+        known_safe_moves = []
+        known_dangerous_moves = []
         
         for nx, ny in environment.get_neighbors(*self.position):
-            if not environment.explored[nx, ny]:
-                unexplored_moves.append((nx, ny))
+            move = (nx, ny)
+            
+            # Classificar movimento baseado no conhecimento compartilhado
+            if not environment.communication_hub.is_cell_explored(move):
+                unexplored_moves.append(move)
+            elif environment.communication_hub.is_cell_safe(move):
+                known_safe_moves.append(move)
+            elif environment.communication_hub.is_bomb_active(move):
+                # Bomba ativa conhecida - evitar completamente
+                known_dangerous_moves.append(move)
             else:
-                # Permitir revisitar células exploradas como último recurso
-                possible_moves.append((nx, ny))
+                # Explorada mas não classificada como segura ou bomba ativa
+                possible_moves.append(move)
         
-        # ⭐ Priorizar células não exploradas
+        # ⭐ ORDEM DE PRIORIDADE usando CommunicationHub:
+        # 1. Células não exploradas (exploração)
+        # 2. Células conhecidas como seguras
+        # 3. Outras células exploradas (fallback)
+        # ❌ EVITAR: Bombas ativas conhecidas
+        
+        candidate_moves = []
         if unexplored_moves:
-            possible_moves = unexplored_moves
-        elif not possible_moves:
-            # Nenhum movimento possível
+            candidate_moves = unexplored_moves
+        elif known_safe_moves:
+            candidate_moves = known_safe_moves
+        elif possible_moves:
+            candidate_moves = possible_moves
+        
+        if not candidate_moves:
             return None
         
-        # Se modelos não estão treinados, escolher aleatoriamente priorizando segurança
+        # Se modelos não estão treinados, usar conhecimento compartilhado
         if not any(m.is_trained for m in self.models.values()):
-            # Priorizar movimento para células que já sabemos ser seguras (shared_knowledge)
-            known_safe = []
-            for move in possible_moves:
-                if move in environment.shared_knowledge:
-                    cell_info = environment.shared_knowledge[move]
-                    if cell_info in ['L', 'T', 'F']:
-                        known_safe.append(move)
-                    elif cell_info == 'B' and move in self.deactivated_bombs:
-                        known_safe.append(move)  # Bomba desativada por mim é segura
-            if known_safe:
-                return known_safe[np.random.randint(len(known_safe))]
-            # ⭐ NOVO: Se não há células conhecidas como seguras, escolher entre não exploradas
-            if unexplored_moves:
+            # Priorizar baseado no CommunicationHub
+            if known_safe_moves and known_safe_moves[0] in candidate_moves:
+                return known_safe_moves[np.random.randint(len(known_safe_moves))]
+            elif unexplored_moves:
                 return unexplored_moves[np.random.randint(len(unexplored_moves))]
-            return possible_moves[np.random.randint(len(possible_moves))]
+            else:
+                return candidate_moves[np.random.randint(len(candidate_moves))]
         
-        # Avaliar cada movimento possível
+        # Avaliar cada movimento possível com modelos ML
         move_scores = []
-        for move in possible_moves:
-            # Bonus de segurança se conhecimento compartilhado indica célula segura
+        for move in candidate_moves:
+            # ⭐ NOVO: Bonus de segurança baseado no CommunicationHub
             safety_bonus = 0
-            if move in environment.shared_knowledge:
-                cell_info = environment.shared_knowledge[move]
-                if cell_info in ['L', 'T', 'F']:
-                    safety_bonus = 2.0  # Muito seguro (já explorado por outro agente)
-                elif cell_info == 'B':
-                    # Verifica se ESTE agente desativou esta bomba
-                    if move in self.deactivated_bombs:
-                        safety_bonus = 2.0  # Seguro para mim (desativei)
-                    else:
-                        safety_bonus = -2.0  # Perigoso para outros (bomba ativa)
             
-            # ⭐ NOVO: Penalizar células já exploradas para priorizar exploração
-            if environment.explored[move[0], move[1]]:
-                safety_bonus -= 1.0  # Penalidade por revisitar
+            if environment.communication_hub.is_cell_safe(move):
+                safety_bonus = 3.0  # Muito seguro (comunicação confirma)
+            elif environment.communication_hub.is_bomb_active(move):
+                safety_bonus = -5.0  # Perigoso (evitar!)
+            elif environment.communication_hub.is_cell_explored(move):
+                safety_bonus = 1.0  # Explorada mas não confirmada como segura
+            
+            # Penalizar revisitar células já exploradas (exceto se são seguras)
+            if environment.explored[move[0], move[1]] and not environment.communication_hub.is_cell_safe(move):
+                safety_bonus -= 1.0
             
             obs = self.observe(environment, move[0], move[1]).reshape(1, -1)
             
             # Combinar predições dos modelos
-            ensemble_score = safety_bonus  # Começar com bonus de segurança
+            ensemble_score = safety_bonus
             total_weight = 0
             
             for model_name, model in self.models.items():
                 if model.is_trained:
                     proba = model.predict_proba(obs)
                     if len(proba) > 0:
-                        # Probabilidade de ser seguro (classe 1)
                         safe_prob = proba[0][1] if proba.shape[1] > 1 else proba[0][0]
                         ensemble_score += self.weights[model_name] * safe_prob
                         total_weight += self.weights[model_name]
@@ -547,7 +972,7 @@ class Agent:
         
         # Escolher movimento com maior score
         best_idx = np.argmax(move_scores)
-        return possible_moves[best_idx]
+        return candidate_moves[best_idx]
 
     
     def move(self, environment, target_pos):
@@ -564,37 +989,54 @@ class Agent:
         # Marcar célula como explorada e obter resultado
         result = environment.mark_explored(*target_pos)
         
-        # ⭐ NOVO: Se já estava explorada, verificar se é uma bomba não desativada por este agente
-        if already_explored:
-            # Se é uma bomba que este agente não desativou, ele morre
-            if result == 'B' and target_pos not in self.deactivated_bombs:
-                self.alive = False
-                self.bombs_activated += 1
-                self.update_knowledge(environment, *target_pos, result)
-                return result
-            # Caso contrário, apenas atualizar conhecimento
-            self.update_knowledge(environment, *target_pos, result)
-            return result
-        
-        # Processar resultado (apenas para células recém-exploradas)
-        if result == 'B':
+        # ⭐ NOVO: Comunicação explícita baseada no resultado
+        if result == 'L':
+            # Célula livre e segura
+            if not already_explored:
+                environment.communication_hub.register_cell_visit(self.id, target_pos, 'L')
+            # Se já explorada, apenas confirmar que é segura (não envia nova mensagem)
+            
+        elif result == 'B':
+            # Bomba encontrada
+            if not already_explored:
+                environment.communication_hub.register_cell_visit(self.id, target_pos, 'B')
+            
+            # Verificar se este agente pode desativar
             if self.has_treasure_protection:
                 # Proteção do tesouro desativa a bomba PARA ESTE AGENTE
                 self.has_treasure_protection = False
                 self.bombs_activated += 1
                 self.bombs_deactivated += 1
                 self.deactivated_bombs.add(target_pos)  # Registra bomba desativada individualmente
-                # NÃO sobrescreve shared_knowledge - outros agentes ainda veem como 'B'
+                # Comunicar desativação
+                environment.communication_hub.register_bomb_deactivation(self.id, target_pos)
             else:
                 # Agente é destruído
                 self.alive = False
                 self.bombs_activated += 1
+                
         elif result == 'T':
+            # Tesouro encontrado
             self.treasures_found += 1
             self.has_treasure_protection = True
             environment.shared_knowledge[target_pos] = 'T_FOUND'
+            if not already_explored:
+                environment.communication_hub.register_cell_visit(self.id, target_pos, 'T')
+            
+        elif result == 'F':
+            # Bandeira encontrada (abordagem C)
+            if not already_explored:
+                environment.communication_hub.register_cell_visit(self.id, target_pos, 'F')
         
-        # Atualizar conhecimento próprio
+        # ⭐ NOVO: Se já estava explorada, verificar se é uma bomba não desativada por este agente
+        if already_explored:
+            # Se é uma bomba que este agente não desativou, ele morre
+            if result == 'B' and target_pos not in self.deactivated_bombs:
+                self.alive = False
+                self.bombs_activated += 1
+            # Caso contrário, apenas atualizar conhecimento
+        
+        # Atualizar conhecimento próprio (ML)
         self.update_knowledge(environment, *target_pos, result)
         
         return result
@@ -821,6 +1263,13 @@ class Simulation:
         self.agents = []
         self._create_agents()
         
+        # ⭐ NOVO: Atribuir territórios para coordenação (exceto baseline)
+        if self.group_type != 'baseline':
+            self.environment.communication_hub.assign_territories(
+                [a.id for a in self.agents],
+                approach='grid'
+            )
+        
         # Métricas
         self.metrics = {
             'approach': approach,
@@ -997,6 +1446,9 @@ class Simulation:
                         break
             self.metrics['success'] = bool(flag_found)
             self.metrics['flag_found'] = bool(flag_found)
+        
+        # ⭐ NOVO: Adicionar estatísticas de comunicação
+        self.metrics['communication'] = self.environment.communication_hub.get_communication_stats()
 
 
 def run_experiment(approach, num_agents, bomb_ratio, group_type, repetitions=30):
