@@ -19,7 +19,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # Importar módulos do projeto
-from simulation import Simulation, run_experiment, run_baseline
+from simulation import Simulation, run_experiment
 from visualization import generate_all_visualizations
 from experiment_runner import analyze_specific_configuration
 
@@ -97,11 +97,7 @@ print(" - Abordagem: C")
 print(" - Taxa de bombas: 70%")
 print(" - Semente: 0\n")
 
-baseline_metrics = run_baseline(
-    approach='C',
-    bomb_ratio=0.7,
-    seed=0
-)
+baseline_metrics = Simulation(approach='C', num_agents=1, bomb_ratio=0.7, group_type='baseline', seed=0).run()
 
 print("Métricas do baseline:")
 for key, value in baseline_metrics.items():

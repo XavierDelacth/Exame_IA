@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 
 # Importar classes do sistema principal
-from simulation import Simulation, run_baseline, run_experiment
+from simulation import Simulation, run_experiment
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
@@ -59,8 +59,14 @@ def simulate():
         
         # Executar simulação
         if group_type == 'baseline':
-            metrics = run_baseline(approach, bomb_ratio)
-            environment_states = None  # Baseline não retorna estado do ambiente
+            # Baseline integrada no framework multi-agente com múltiplos agentes
+            sim = Simulation(approach, num_agents, bomb_ratio, group_type)
+            sim.collect_states = True  # Ativar coleta de estados para animação
+            
+            metrics = sim.run()
+            
+            # Usar estados coletados durante a simulação
+            environment_states = sim.states
         else:
             sim = Simulation(approach, num_agents, bomb_ratio, group_type)
             sim.collect_states = True  # Ativar coleta de estados para animação
@@ -246,7 +252,8 @@ def compare_results():
         # Baseline
         baseline_results = []
         for i in range(30):
-            metrics = run_baseline(approach, bomb_ratio, seed=i)
+            sim = Simulation(approach=approach, num_agents=1, bomb_ratio=bomb_ratio, group_type='baseline', seed=i)
+            metrics = sim.run()
             baseline_results.append(metrics)
         
         import pandas as pd
@@ -255,7 +262,7 @@ def compare_results():
         results['baseline'] = {
             'mean_time': float(baseline_df['execution_time'].mean()),
             'std_time': float(baseline_df['execution_time'].std()),
-            'mean_steps': float(baseline_df['steps'].mean()) if 'steps' in baseline_df else 0
+            'mean_steps': float(baseline_df['total_steps'].mean()) if 'total_steps' in baseline_df else 0
         }
         
         return jsonify({
