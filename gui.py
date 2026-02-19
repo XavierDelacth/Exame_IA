@@ -6,19 +6,23 @@ import numpy as np
 import threading
 import time
 from collections import deque
+from pathlib import Path
 import pandas as pd
-from gui_integration import integrate_comparison_system
 
-# Importar as classes que já criamos
-from abordagem_a import (
-    ApproachASimulation, BaselineSimulation, Environment,
+# Pasta para todos os ficheiros CSV
+DATA_DIR = Path("data")
+from analise.gui_integration import integrate_comparison_system
+
+# Importar as classes do pacote abordagem
+from abordagem.abordagem_a import (
+    ApproachASimulation, BaselineSimulation, Environment, BaselineA_Greedy,
     compare_approaches, plot_comparison_results
 )
-from abordagem_b import (
+from abordagem.abordagem_b import (
     ApproachBSimulation, BaselineB_BFS, EnvironmentB,
     compare_approaches_b
 )
-from abordagem_c import (
+from abordagem.abordagem_c import (
     ApproachCSimulation, BaselineC_AStar, EnvironmentC,
     compare_approaches_c
 )
@@ -26,7 +30,7 @@ from abordagem_c import (
 class IAProjectGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Projeto IA - Exploração Colaborativa de Ambientes")
+        self.root.title("Projecto IA - Exploração Colaborativa de Ambientes")
         self.root.geometry("1400x900")
         
         # Configurar estilo
@@ -78,7 +82,7 @@ class IAProjectGUI:
         
         title_label = tk.Label(
             title_frame,
-            text="🏆 PROJETO DE INTELIGÊNCIA ARTIFICIAL",
+            text=" PROJETO DE INTELIGÊNCIA ARTIFICIAL",
             font=("Arial", 24, "bold"),
             fg=self.header_color,
             bg=self.bg_color
@@ -111,27 +115,27 @@ class IAProjectGUI:
         
         ttk.Button(
             approach_buttons,
-            text="🅰️ ABORDAGEM A",
+            text=" ABORDAGEM A",
             command=lambda: self.select_approach("A"),
             style="ApproachA.TButton"
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
         
         ttk.Button(
             approach_buttons,
-            text="🅱️ ABORDAGEM B",
+            text=" ABORDAGEM B",
             command=lambda: self.select_approach("B"),
             style="ApproachB.TButton"
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
         
         ttk.Button(
             approach_buttons,
-            text="© ABORDAGEM C",
+            text=" ABORDAGEM C",
             command=lambda: self.select_approach("C"),
             style="ApproachC.TButton"
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
         
         # Configurações da simulação
-        config_frame = ttk.LabelFrame(control_frame, text="⚙️ CONFIGURAÇÕES", padding="10")
+        config_frame = ttk.LabelFrame(control_frame, text=" CONFIGURAÇÕES", padding="10")
         config_frame.pack(fill=tk.X, pady=10)
         
         # Número de agentes
@@ -145,7 +149,7 @@ class IAProjectGUI:
         self.bomb_scale = ttk.Scale(config_frame, from_=20, to=80, length=150)
         self.bomb_scale.set(20)
         self.bomb_label = ttk.Label(config_frame, text="50%")
-        self.bomb_scale.config(command=lambda v: self.bomb_label.config(text=f"{int(float(v))}%"))
+        self.bomb_scale.config(command=self.update_bomb_label)
         self.bomb_scale.grid(row=1, column=1, sticky=tk.W, pady=5)
         self.bomb_label.grid(row=1, column=2, padx=(5, 0))
         
@@ -198,13 +202,13 @@ class IAProjectGUI:
         
         ttk.Button(
             button_frame,
-            text="🧹 LIMPAR LOGS",
+            text=" LIMPAR LOGS",
             command=self.clear_logs
         ).pack(fill=tk.X, pady=5)
         
         ttk.Button(
             button_frame,
-            text="💾 EXPORTAR DADOS",
+            text=" EXPORTAR DADOS",
             command=self.export_data
         ).pack(fill=tk.X, pady=5)
         
@@ -228,7 +232,7 @@ class IAProjectGUI:
             self.status_labels[label].grid(row=i, column=1, sticky=tk.W, pady=3, padx=(10, 0))
         
         # ===== PAINEL DE VISUALIZAÇÃO =====
-        visual_frame = ttk.LabelFrame(main_frame, text="🗺️ VISUALIZAÇÃO DO AMBIENTE", padding="10")
+        visual_frame = ttk.LabelFrame(main_frame, text=" VISUALIZAÇÃO DO AMBIENTE", padding="10")
         visual_frame.grid(row=1, column=1, sticky=(tk.N, tk.S, tk.E, tk.W), padx=(0, 10))
         visual_frame.columnconfigure(0, weight=1)
         visual_frame.rowconfigure(0, weight=1)
@@ -242,7 +246,7 @@ class IAProjectGUI:
         self.initialize_visualization()
         
         # ===== PAINEL DE LOGS =====
-        log_frame = ttk.LabelFrame(main_frame, text="📝 LOGS DE EXECUÇÃO", padding="10")
+        log_frame = ttk.LabelFrame(main_frame, text=" LOGS DE EXECUÇÃO", padding="10")
         log_frame.grid(row=1, column=2, sticky=(tk.N, tk.S, tk.E, tk.W))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
@@ -372,6 +376,24 @@ class IAProjectGUI:
         elif approach == "C":
             self.group_type.set("heterogeneous")  # Padrão para abordagem C
     
+    
+    def update_bomb_label(self, value):
+        """Atualiza label com avisos visuais para Abordagem B"""
+        bomb_pct = int(float(value))
+        if bomb_pct <= 30:
+            color, warning = "green", ""
+        elif bomb_pct <= 50:
+            color, warning = "orange", " ⚠️"
+        elif bomb_pct <= 65:
+            color, warning = "red", " ⚠️ Alto!"
+        else:
+            color, warning = "darkred", " ⚠️ LIMITADO!"
+        
+        self.bomb_label.config(text=f"{bomb_pct}%{warning}", foreground=color)
+        
+        if bomb_pct > 65 and hasattr(self, 'approach_var') and self.approach_var.get() == "B":
+            self.log(f"⚠️  Bombas > 65% serão limitadas a 65% (garante 100% exploração)", "WARNING")
+
     def log(self, message, level="INFO"):
         """Adicionar mensagem ao log"""
         timestamp = time.strftime("%H:%M:%S")
@@ -418,6 +440,31 @@ class IAProjectGUI:
         # Criar matriz visual
         visual_grid = np.zeros((10, 10))
         
+        # Se shared_memory for None (Baseline A), criar adapter
+        if not hasattr(simulation, 'shared_memory') or simulation.shared_memory is None:
+            # Adapter para Baseline A: agregar dados de memória individual de cada agente
+            class BaselineVisualizationAdapter:
+                def __init__(self, baseline_sim_obj):
+                    self.env = baseline_sim_obj.env
+                    self.agents = baseline_sim_obj.agents
+                    self.num_agents = baseline_sim_obj.num_agents
+                    # Agregar dados de memória individual de todos os agentes
+                    self.shared_memory = type('obj', (object,), {
+                        'explored': set(),
+                        'bombs_found': set(),
+                        'treasures_found': set(),
+                        'treasures_collected': set(),
+                        'true_flag_position': None
+                    })()
+                    # Combinar explored e bombs_found de todos os agentes
+                    for agent in baseline_sim_obj.agents:
+                        if hasattr(agent, 'memory'):
+                            self.shared_memory.explored.update(agent.memory.explored)
+                            self.shared_memory.bombs_found.update(agent.memory.bombs_found)
+                            self.shared_memory.treasures_found.update(agent.memory.treasures_found)
+            
+            simulation = BaselineVisualizationAdapter(simulation)
+        
         # Verificar se é abordagem B (sem tesouros)
         is_approach_b = hasattr(simulation, 'env') and isinstance(simulation.env, EnvironmentB)
         # Verificar se é abordagem C (com bandeira)
@@ -447,7 +494,6 @@ class IAProjectGUI:
             for (x, y) in simulation.shared_memory.explored:
                 if visual_grid[x, y] == 0:  # Não é tesouro ou bomba
                     visual_grid[x, y] = 2  # Livre explorada
-            # ABORDAGEM C: Marcar bandeira SEMPRE (usando true_flag_position para UI)
             if is_approach_c:
                 # A bandeira está SEMPRE visível na UI (roxo), mas desconhecida dos agentes
                 flag_pos = None
@@ -484,35 +530,7 @@ class IAProjectGUI:
                     self.ax.text(j, i, '?', ha='center', va='center', 
                                 fontsize=8, color='gray', alpha=0.5)
         
-        # Adicionar símbolo de bandeira (SEMPRE visível, mas desconhecida dos agentes)
-        if is_approach_c:
-            flag_pos = None
-            if hasattr(simulation.shared_memory, 'true_flag_position') and simulation.shared_memory.true_flag_position:
-                flag_pos = simulation.shared_memory.true_flag_position
-            elif hasattr(simulation, 'env') and hasattr(simulation.env, 'flag_position') and simulation.env.flag_position:
-                flag_pos = simulation.env.flag_position
-            
-            if flag_pos:
-                fx, fy = flag_pos
-                # Mostrar emoji da bandeira SEMPRE (independente se foi encontrada)
-                self.ax.text(fy, fx, '🚩', ha='center', va='center', 
-                            fontsize=16, color='purple', fontweight='bold')
-        
-        # Configurações do gráfico
-        if is_approach_b:
-            approach = "B"
-            title_suffix = "Exploração Completa"
-        elif is_approach_c:
-            approach = "C"
-            title_suffix = "Busca da Bandeira 🚩"
-        else:
-            approach = "A"
-            title_suffix = "Caça ao Tesouro"
-        
-        self.ax.set_title(f'Abordagem {approach} - {title_suffix} ({simulation.num_agents} agentes)', 
-                         fontsize=12, fontweight='bold')
-        
-        # Legenda ajustada por abordagem
+        # Adicionar legenda
         from matplotlib.patches import Patch
         if is_approach_b:
             legend_elements = [
@@ -522,7 +540,6 @@ class IAProjectGUI:
                 Patch(facecolor='green', edgecolor='black', label='Agente')
             ]
         elif is_approach_c:
-            # Legenda específica para Abordagem C
             legend_elements = [
                 Patch(facecolor='white', edgecolor='black', label='Desconhecido'),
                 Patch(facecolor='red', edgecolor='black', label='Bomba'),
@@ -540,6 +557,25 @@ class IAProjectGUI:
                 Patch(facecolor='gold', edgecolor='black', label='Tesouro'),
                 Patch(facecolor='green', edgecolor='black', label='Agente')
             ]
+        
+        # Título e configurações do gráfico
+        if is_approach_b:
+            approach = "B"
+            title_suffix = "Exploração Completa"
+        elif is_approach_c:
+            approach = "C"
+            title_suffix = "Busca da Bandeira "
+        else:
+            approach = "A"
+            title_suffix = "Caça ao Tesouro"
+        
+        self.ax.set_title(f'Abordagem {approach} - {title_suffix} ({simulation.num_agents} agentes)', 
+                         fontsize=12, fontweight='bold')
+        self.ax.set_xlim(-0.5, 9.5)
+        self.ax.set_ylim(9.5, -0.5)
+        self.ax.set_xticks(range(10))
+        self.ax.set_yticks(range(10))
+        
         self.ax.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc='upper left')
         
         self.fig.tight_layout()
@@ -582,13 +618,17 @@ class IAProjectGUI:
     def run_simulation_thread(self, approach, num_agents, bomb_ratio, treasure_count, max_steps, group_type):
         """Função executada na thread de simulação"""
         try:
-            # IMPORTANTE: Baselines B e C agora são tratados como simulação normal (com visualização)
+            # IMPORTANTE: Converter Baseline A para simulação iterativa também
             if group_type == "baseline" and approach == "A":
-                self.run_baseline_simulation(approach, bomb_ratio, treasure_count, max_steps)
-                return
-            
+                # Usar BaselineSimulation wrapper para passo a passo
+                self.current_simulation = BaselineSimulation(
+                    num_agents=num_agents,
+                    bomb_ratio=bomb_ratio,
+                    treasure_count=treasure_count,
+                    max_steps=max_steps
+                )
             # Criar simulação baseada na abordagem
-            if approach == "A":
+            elif approach == "A":
                 homogeneous = (group_type == "homogeneous")
                 self.current_simulation = ApproachASimulation(
                     num_agents=num_agents,
@@ -648,6 +688,49 @@ class IAProjectGUI:
             
             # Configurar ambiente inicial
             self.root.after(0, self.update_visualization, self.current_simulation)
+            self.root.after(0, self.update_status, "Status:", "Executando...")
+            
+            # Simulação principal
+            while (step < max_steps and 
+                   len([a for a in self.current_simulation.agents if a.alive]) > 0 and
+                   not self.stop_simulation):
+                
+                step += 1
+                
+                # Executar um passo
+                if group_type == "baseline" and approach == "A":
+                    # Para baseline A, executar passo manualmente
+                    self.execute_baseline_step(step)
+                else:
+                    # Para ML agents (homogêneo/heterogêneo)
+                    self.execute_simulation_step(step)
+                
+                # VERIFICAÇÃO CRÍTICA: Se Abordagem C e bandeira foi encontrada, terminar
+                if (approach == "C" and 
+                    hasattr(self.current_simulation, 'shared_memory') and
+                    self.current_simulation.shared_memory.flag_found):
+                    self.root.after(0, self.log, "🚩 BANDEIRA ENCONTRADA! Encerrando simulação...", "SUCCESS")
+                    break
+                
+                # Atualizar progresso
+                progress = (step / max_steps) * 100
+                self.root.after(0, self.progress_var.set, progress)
+                
+                # Atualizar status a cada 10 passos ou no final
+                if step % 10 == 0 or step >= max_steps:
+                    self.update_simulation_status(step, max_steps)
+                
+                # Pausa para visualização
+                time.sleep(0.05)  # 50ms entre passos para visualização
+            
+            # Finalizar simulação
+            self.finalize_simulation(start_time)
+            
+        except Exception as e:
+            self.root.after(0, self.log, f"Erro na simulação: {str(e)}", "ERROR")
+            import traceback
+            traceback.print_exc()
+            self.root.after(0, self.reset_buttons)
             self.root.after(0, self.update_status, "Status:", "Executando...")
             
             # Simulação principal
@@ -749,6 +832,40 @@ class IAProjectGUI:
         # Atualizar visualização
         self.root.after(0, self.update_visualization, self.current_simulation)
     
+    def execute_baseline_step(self, step):
+        """Executar um passo da simulação Baseline A (sem memória compartilhada)"""
+        self.current_simulation.logs.append(f"\n--- Passo {step} (Baseline) ---")
+        
+        # FASE 1: Todos os agentes escolhem suas ações
+        actions = {}
+        for agent in self.current_simulation.agents:
+            if not agent.alive:
+                actions[agent.id] = None
+                continue
+            
+            # Para baseline, usar memória individual do agente
+            next_pos = agent.choose_action(None, self.current_simulation.env)  # None = usa memória privada
+            actions[agent.id] = next_pos
+        
+        # FASE 2: Todos executam seus movimentos
+        for agent in self.current_simulation.agents:
+            if not agent.alive:
+                continue
+            
+            next_pos = actions.get(agent.id)
+            log_msg = agent.move_to(next_pos, None, self.current_simulation.env)  # None = usa memória privada
+            
+            # Adicionar log na interface
+            if "TESOURO" in log_msg:
+                self.root.after(0, self.log, log_msg, "TREASURE")
+            elif "DESTRUÍDO" in log_msg:
+                self.root.after(0, self.log, log_msg, "ERROR")
+            else:
+                self.root.after(0, self.log, log_msg, "INFO")
+        
+        # Atualizar visualização
+        self.root.after(0, self.update_visualization, self.current_simulation)
+    
     def update_simulation_status(self, step, max_steps):
         """Atualizar informações de status"""
         approach = self.approach_var.get()
@@ -781,7 +898,12 @@ class IAProjectGUI:
                 self.root.after(0, self.log, f"Passo {step}: Bandeira {'ENCONTRADA' if flag_found else 'não encontrada'}, {agents_alive} agentes vivos", "INFO")
         else:
             # Abordagem A
-            treasures_found = len(self.current_simulation.shared_memory.treasures_found)
+            # Para Baseline, agregar tesouros de todos os agentes individuais
+            if self.group_type.get() == "baseline":
+                treasures_found = sum(agent.treasures_collected for agent in self.current_simulation.agents)
+            else:
+                treasures_found = len(self.current_simulation.shared_memory.treasures_found)
+            
             total_treasures = self.current_simulation.env.treasure_count
             self.root.after(0, self.update_status, "Tesouros Encontrados:", f"{treasures_found}/{total_treasures}")
             if self.start_time:
@@ -804,7 +926,12 @@ class IAProjectGUI:
         # Calcular sucesso baseado na abordagem
         success = False
         if approach == "A":
-            treasures_found = len(self.current_simulation.shared_memory.treasures_found)
+            # Para Baseline A, agregar tesouros de todos os agentes; para ML, usar shared_memory
+            if self.group_type.get() == "baseline":
+                treasures_found = sum(agent.treasures_collected for agent in self.current_simulation.agents)
+            else:
+                treasures_found = len(self.current_simulation.shared_memory.treasures_found)
+            
             total_treasures = self.current_simulation.env.treasure_count
             success = treasures_found > (total_treasures * 0.5)
             self.root.after(0, self.update_status, "Tesouros Encontrados:", f"{treasures_found}/{total_treasures}")
@@ -889,28 +1016,60 @@ class IAProjectGUI:
         self.progress_var.set(100)
     
     def run_baseline_simulation(self, approach, bomb_ratio, treasure_count, max_steps):
-        """Executar simulação baseline"""
+        """Executar simulação baseline com agentes reais no ambiente"""
         try:
-            self.log("Executando algoritmo baseline...", "INFO")
+            # Obter número de agentes da interface
+            num_agents = int(self.agent_spinbox.get())
             
-            # Criar baseline baseado na abordagem
+            self.log(f"Executando simulação baseline com {num_agents} agentes...", "INFO")
+            self.log("⚠️ Baseline: Agentes trabalham SEM colaboração (memória individual)", "INFO")
+            
+            # Criar simulação baseline com agentes reais
             if approach == "A":
-                baseline_sim = BaselineA_Greedy(bomb_ratio=bomb_ratio, treasure_count=treasure_count, max_steps=max_steps)
+                baseline_sim = BaselineSimulation(
+                    num_agents=num_agents,
+                    bomb_ratio=bomb_ratio,
+                    treasure_count=treasure_count,
+                    max_steps=max_steps
+                )
             elif approach == "B":
-                baseline_sim = BaselineB_BFS(bomb_ratio=bomb_ratio, max_steps=max_steps)
+                # Para abordagem B, usar BaselineSimulation (sem tesouros)
+                self.log("⚠️ Baseline B: Sem tesouros, foco em exploração", "INFO")
+                baseline_sim = BaselineSimulation(
+                    num_agents=num_agents,
+                    bomb_ratio=bomb_ratio,
+                    treasure_count=0,  # B não tem tesouros
+                    max_steps=max_steps
+                )
             elif approach == "C":
-                baseline_sim = BaselineC_AStar(bomb_ratio=bomb_ratio, treasure_count=treasure_count, max_steps=max_steps)
+                # Para abordagem C, usar BaselineC_AStar
+                self.log("⚠️ Baseline C: Usando A* para encontrar bandeira", "INFO")
+                baseline_sim = BaselineC_AStar(
+                    num_agents=num_agents,
+                    bomb_ratio=bomb_ratio,
+                    treasure_count=treasure_count,
+                    max_steps=max_steps
+                )
             else:
                 raise ValueError("Abordagem não suportada")
             
-            # Executar baseline
+            # Executar baseline com visualização
             start_time = time.time()
-            metrics = baseline_sim.run()
+            
+            # Armazenar referência para visualização
+            self.current_simulation = baseline_sim
+            
+            # Executar simulação
+            metrics = baseline_sim.run_simulation(verbose=True)
             execution_time = time.time() - start_time
+            
+            # Atualizar métricas para incluir execution_time
+            metrics['execution_time'] = execution_time
             
             # Log dos resultados
             self.log(f"Baseline {approach} concluído!", "SUCCESS")
-            self.log(f"Tesouros encontrados: {metrics.get('treasures_found', 0)}", "INFO")
+            self.log(f"Tesouros encontrados: {metrics.get('treasures_found', 0)}/{treasure_count}", "INFO")
+            self.log(f"Agentes sobreviventes: {metrics.get('agents_alive', 0)}/{num_agents}", "INFO")
             self.log(f"Passos executados: {metrics['steps_taken']}", "INFO")
             self.log(f"Tempo de execução: {execution_time:.2f}s", "INFO")
             self.log(f"Sucesso: {'Sim' if metrics['success'] else 'Não'}", "INFO")
@@ -918,6 +1077,51 @@ class IAProjectGUI:
             # Atualizar interface
             self.root.after(0, self.update_status, "Status:", "Baseline concluído")
             self.root.after(0, self.update_status, "Tempo de Execução:", f"{execution_time:.2f}s")
+            self.root.after(0, self.update_status, "Agentes Vivos:", f"{metrics.get('agents_alive', 0)}/{num_agents}")
+            self.root.after(0, self.update_status, "Tesouros:", f"{metrics.get('treasures_found', 0)}/{treasure_count}")
+            
+            # Exibir logs da simulação
+            if hasattr(baseline_sim, 'logs'):
+                for log in baseline_sim.logs:
+                    self.log(log, "INFO")
+            
+            # Salvar resultados no storage se disponível
+            if hasattr(self, 'storage'):
+                parameters = {
+                    'num_agents': num_agents,
+                    'bomb_ratio': bomb_ratio,
+                    'treasure_count': treasure_count,
+                    'max_steps': max_steps,
+                    'homogeneous': False  # Baseline é sempre "não-colaborativo"
+                }
+                self.storage.save_result(approach, 'baseline', metrics, parameters)
+                self.log("✅ Resultados salvos no armazenamento", "SUCCESS")
+            
+            # Visualizar ambiente final
+            if hasattr(baseline_sim, 'env'):
+                # Criar um wrapper para Baseline ser compatível com update_visualization
+                class BaselineVisualizationAdapter:
+                    def __init__(self, baseline_sim_obj):
+                        self.env = baseline_sim_obj.env
+                        self.agents = baseline_sim_obj.agents
+                        self.num_agents = baseline_sim_obj.num_agents
+                        # Agregar dados de memória individual de todos os agentes
+                        self.shared_memory = type('obj', (object,), {
+                            'explored': set(),
+                            'bombs_found': set(),
+                            'treasures_found': set(),
+                            'treasures_collected': set(),
+                            'true_flag_position': None
+                        })()
+                        # Combinar explored e bombs_found de todos os agentes
+                        for agent in baseline_sim_obj.agents:
+                            if hasattr(agent, 'memory'):
+                                self.shared_memory.explored.update(agent.memory.explored)
+                                self.shared_memory.bombs_found.update(agent.memory.bombs_found)
+                                self.shared_memory.treasures_found.update(agent.memory.treasures_found)
+                
+                adapter = BaselineVisualizationAdapter(baseline_sim)
+                self.root.after(0, self.update_visualization, adapter)
             
             # Resetar botões
             self.root.after(0, lambda: self.start_button.config(state=tk.NORMAL))
@@ -925,6 +1129,8 @@ class IAProjectGUI:
             
         except Exception as e:
             self.log(f"Erro na simulação baseline: {str(e)}", "ERROR")
+            import traceback
+            traceback.print_exc()
             self.root.after(0, lambda: self.start_button.config(state=tk.NORMAL))
             self.root.after(0, lambda: self.stop_button.config(state=tk.DISABLED))
     
@@ -934,7 +1140,7 @@ class IAProjectGUI:
         self.log("Simulação interrompida pelo usuário", "WARNING")
         self.update_status("Status:", "Interrompido")
         self.reset_buttons()
-    
+
     def run_comparison(self):
         """Executar comparação entre abordagens - VERSÃO CORRIGIDA"""
         try:
@@ -1481,8 +1687,9 @@ class IAProjectGUI:
         return analysis
     
     def export_table_to_csv(self, df):
-        """Exportar tabela para CSV"""
-        filename = f"resultados_comparacao_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+        """Exportar tabela para CSV (pasta data)"""
+        DATA_DIR.mkdir(exist_ok=True)
+        filename = DATA_DIR / f"resultados_comparacao_{time.strftime('%Y%m%d_%H%M%S')}.csv"
         df.to_csv(filename, index=False, encoding='utf-8-sig')
         self.log(f"Tabela exportada para {filename}", "SUCCESS")
         messagebox.showinfo("Exportação", f"Dados exportados para {filename}")
@@ -1503,8 +1710,9 @@ class IAProjectGUI:
             # Criar DataFrame
             df = pd.DataFrame(self.simulation_results)
             
-            # Exportar para CSV
-            filename = f"dados_simulacao_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+            # Exportar para CSV (pasta data)
+            DATA_DIR.mkdir(exist_ok=True)
+            filename = DATA_DIR / f"dados_simulacao_{time.strftime('%Y%m%d_%H%M%S')}.csv"
             df.to_csv(filename, index=False, encoding='utf-8-sig')
             
             self.log(f"Dados exportados para {filename}", "SUCCESS")

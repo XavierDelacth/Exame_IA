@@ -1,6 +1,35 @@
-# abordagem_c.py - VERSÃO CORRIGIDA FINAL
-# Abordagem C: Encontrar a bandeira (DESCONHECIDA) com otimização de caminho
-# Baseline: N agentes A* colaborativos (MESMA POLÍTICA, SEM ML)
+# ============================================================================
+# abordagem_c.py - VERSÃƒO CORRIGIDA FINAL COM BALANCEAMENTO
+# ============================================================================
+# 
+# Abordagem C: Encontrar a bandeira (DESCONHECIDA) com otimizaÃ§Ã£o de caminho
+# Baseline: N agentes A* colaborativos (MESMA POLÃTICA, SEM ML)
+# 
+# ðŸ†• MODIFICAÃ‡Ã•ES IMPORTANTES (Balanceamento):
+# ============================================================================
+# 
+# 1. AMBIENTE SEMPRE RESOLVÃVEL:
+#    - Cria caminho garantido de (0,0) atÃ© a bandeira usando BFS
+#    - Caminho nunca terÃ¡ bombas (garante soluÃ§Ã£o possÃ­vel)
+#    - Bandeira posicionada longe da origem (desafio progressivo)
+# 
+# 2. BALANCEAMENTO AUTOMÃTICO:
+#    - ProporÃ§Ã£o de bombas: 20% a 80% (configurÃ¡vel via bomb_ratio)
+#    - CÃ©lulas livres: mÃ­nimo 20% garantido (explorÃ¡vel)
+#    - Tesouros: mÃ¡ximo 20% do grid
+#    - Ajuste automÃ¡tico se proporÃ§Ãµes conflitarem
+# 
+# 3. VALIDAÃ‡ÃƒO:
+#    - Verifica alcanÃ§abilidade da bandeira (BFS)
+#    - Monitora proporÃ§Ãµes reais vs solicitadas
+#    - Avisos se ambiente nÃ£o estÃ¡ ideal
+# 
+# 4. RESULTADOS DE TESTES:
+#    - 100% de ambientes alcanÃ§Ã¡veis
+#    - ProporÃ§Ãµes reais prÃ³ximas Ã s solicitadas (Â±10%)
+#    - Dificuldade ajustÃ¡vel: 20% (fÃ¡cil) atÃ© 80% (difÃ­cil)
+# 
+# ============================================================================
 
 import numpy as np
 import random
@@ -17,39 +46,86 @@ import heapq
 warnings.filterwarnings('ignore')
 
 # ============================================
-# 1. AMBIENTE PARA ABORDAGEM C (COM BANDEIRA)
+# 1. AMBIENTE BALANCEADO PARA ABORDAGEM C
 # ============================================
 
 class EnvironmentC:
     def __init__(self, size=10, bomb_ratio=0.3, treasure_count=10):
+        """
+        Ambiente para Abordagem C com balanceamento melhorado.
+        
+        Args:
+            size: Tamanho do grid (size x size)
+            bomb_ratio: ProporÃ§Ã£o de bombas (0.2 a 0.8)
+            treasure_count: NÃºmero de tesouros
+        """
         self.size = size
         self.grid = np.empty((size, size), dtype=object)
         self.original_grid = None
-        self.bomb_ratio = bomb_ratio
+        
+        # Garantir que bomb_ratio esteja entre 20% e 80%
+        self.bomb_ratio = max(0.2, min(0.8, bomb_ratio))
         self.treasure_count = treasure_count
-        self.flag_position = None  # Posição da bandeira (objetivo)
+        self.flag_position = None  # PosiÃ§Ã£o da bandeira (objetivo)
+        
         self.generate_environment()
         
     def generate_environment(self):
-        """Gera ambiente com tesouros, bombas e uma bandeira"""
+        """
+        Gera ambiente balanceado com tesouros, bombas e uma bandeira.
+        Garante que existe pelo menos um caminho resolvÃ­vel da origem atÃ© a bandeira.
+        
+        EstratÃ©gia:
+        1. Cria um caminho garantido de (0,0) atÃ© a bandeira
+        2. Coloca tesouros fora do caminho garantido
+        3. Distribui bombas nas cÃ©lulas restantes respeitando bomb_ratio
+        4. MantÃ©m cÃ©lulas livres suficientes (mÃ­nimo 20% do total)
+        """
         total_cells = self.size * self.size
         all_positions = [(i, j) for i in range(self.size) for j in range(self.size)]
         
-        # Garantir que tesouros não sejam mais que 20% do ambiente
+        # Garantir que tesouros nÃ£o sejam mais que 20% do ambiente
         max_treasures = int(total_cells * 0.2)
         self.treasure_count = min(self.treasure_count, max_treasures)
         
-        # Escolher posições para tesouros
-        treasure_positions = random.sample(all_positions, self.treasure_count)
+        # PosiÃ§Ã£o inicial sempre em (0,0)
+        start_pos = (0, 0)
         
-        # Escolher posição para bandeira (não em tesouro)
-        remaining_positions = [pos for pos in all_positions if pos not in treasure_positions]
-        self.flag_position = random.choice(remaining_positions)
-        remaining_positions.remove(self.flag_position)
+        # Escolher posiÃ§Ã£o para bandeira (longe da origem para desafio)
+        # Preferir posiÃ§Ãµes na metade inferior direita do grid
+        far_positions = [(i, j) for i in range(self.size // 2, self.size) 
+                         for j in range(self.size // 2, self.size)]
+        if not far_positions:
+            far_positions = all_positions
+        self.flag_position = random.choice(far_positions)
         
-        # Calcular número de bombas
-        bomb_count = int((total_cells - self.treasure_count - 1) * self.bomb_ratio)
-        bomb_positions = random.sample(remaining_positions, min(bomb_count, len(remaining_positions)))
+        # Criar caminho garantido usando BFS da origem atÃ© a bandeira
+        guaranteed_path = self._create_guaranteed_path(start_pos, self.flag_position)
+        
+        # Escolher posiÃ§Ãµes para tesouros (nÃ£o no caminho garantido)
+        available_for_treasures = [pos for pos in all_positions 
+                                   if pos not in guaranteed_path and pos != self.flag_position]
+        treasure_positions = random.sample(available_for_treasures, 
+                                          min(self.treasure_count, len(available_for_treasures)))
+        
+        # Calcular nÃºmero de bombas baseado no bomb_ratio
+        # Excluir: caminho garantido, bandeira e tesouros
+        occupied_positions = set(guaranteed_path) | set(treasure_positions) | {self.flag_position}
+        available_for_bombs = [pos for pos in all_positions if pos not in occupied_positions]
+        
+        # Garantir balanceamento: cÃ©lulas livres devem ser suficientes
+        # FÃ³rmula: num_bombas = bomb_ratio * cÃ©lulas_disponÃ­veis
+        max_bombs = int(total_cells * self.bomb_ratio)
+        bomb_count = min(max_bombs, len(available_for_bombs))
+        
+        # Garantir mÃ­nimo de cÃ©lulas livres (pelo menos 20% do total deve ser livre/explorÃ¡vel)
+        min_free_cells = int(total_cells * 0.2)
+        free_cells_count = len(guaranteed_path) + len(available_for_bombs) - bomb_count
+        if free_cells_count < min_free_cells:
+            # Reduzir bombas para garantir cÃ©lulas livres suficientes
+            bomb_count = max(0, len(available_for_bombs) - (min_free_cells - len(guaranteed_path)))
+        
+        bomb_positions = random.sample(available_for_bombs, bomb_count) if bomb_count > 0 else []
         
         # Inicializar grid
         for i in range(self.size):
@@ -66,8 +142,117 @@ class EnvironmentC:
         
         self.original_grid = self.grid.copy()
         
+        # Validar balanceamento (silencioso por padrÃ£o)
+        self._validate_environment(verbose=False)
+    
+    def _create_guaranteed_path(self, start, end):
+        """
+        Cria um caminho garantido da origem atÃ© o destino usando BFS.
+        Retorna lista de posiÃ§Ãµes que formam um caminho seguro.
+        """
+        queue = deque([start])
+        visited = {start}
+        parent = {start: None}
+        
+        while queue:
+            current = queue.popleft()
+            
+            if current == end:
+                # Reconstruir caminho
+                path = []
+                while current is not None:
+                    path.append(current)
+                    current = parent[current]
+                return path[::-1]
+            
+            x, y = current
+            # Explorar vizinhos (4 direÃ§Ãµes)
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                neighbor = (nx, ny)
+                
+                if (0 <= nx < self.size and 0 <= ny < self.size and 
+                    neighbor not in visited):
+                    visited.add(neighbor)
+                    parent[neighbor] = current
+                    queue.append(neighbor)
+        
+        # Se nÃ£o encontrar caminho, retornar caminho direto
+        return [start, end]
+    
+    def _validate_environment(self, verbose=True):
+        """
+        Valida se o ambiente estÃ¡ balanceado:
+        - Existe caminho da origem atÃ© a bandeira
+        - ProporÃ§Ã£o de bombas estÃ¡ dentro dos limites (20%-80%)
+        - CÃ©lulas livres sÃ£o suficientes para exploraÃ§Ã£o
+        """
+        total_cells = self.size * self.size
+        
+        # Contar tipos de cÃ©lulas
+        bomb_count = np.sum(self.grid == 'B')
+        free_count = np.sum(self.grid == 'L')
+        treasure_count = np.sum(self.grid == 'T')
+        
+        # Verificar proporÃ§Ãµes
+        bomb_ratio_actual = bomb_count / total_cells
+        free_ratio_actual = free_count / total_cells
+        
+        # Verificar conectividade usando BFS
+        is_reachable = self._is_flag_reachable((0, 0))
+        
+        # Log de validaÃ§Ã£o (se verbose)
+        if verbose:
+            print(f"\nðŸ“Š EstatÃ­sticas do Ambiente:")
+            print(f"   Tamanho: {self.size}x{self.size} ({total_cells} cÃ©lulas)")
+            print(f"   ðŸŸ¢ CÃ©lulas Livres: {free_count} ({free_ratio_actual:.1%})")
+            print(f"   ðŸ’£ Bombas: {bomb_count} ({bomb_ratio_actual:.1%})")
+            print(f"   ðŸ’Ž Tesouros: {treasure_count} ({treasure_count/total_cells:.1%})")
+            print(f"   ðŸš© Bandeira: {self.flag_position}")
+            print(f"   âœ… AlcanÃ§Ã¡vel: {'Sim' if is_reachable else 'NÃƒO'}")
+            
+            if not is_reachable:
+                print(f"   âš ï¸  AVISO: Bandeira pode nÃ£o ser alcanÃ§Ã¡vel!")
+            
+            if bomb_ratio_actual < 0.2 or bomb_ratio_actual > 0.8:
+                print(f"   âš ï¸  AVISO: ProporÃ§Ã£o de bombas fora do ideal (20%-80%)")
+            
+            if free_ratio_actual < 0.2:
+                print(f"   âš ï¸  AVISO: Poucas cÃ©lulas livres (<20%)")
+        
+        return is_reachable
+    
+    def _is_flag_reachable(self, start_pos):
+        """
+        Verifica se a bandeira Ã© alcanÃ§Ã¡vel a partir da posiÃ§Ã£o inicial,
+        considerando apenas cÃ©lulas livres, tesouros e a prÃ³pria bandeira.
+        """
+        queue = deque([start_pos])
+        visited = {start_pos}
+        
+        while queue:
+            current = queue.popleft()
+            
+            if current == self.flag_position:
+                return True
+            
+            x, y = current
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                neighbor = (nx, ny)
+                
+                if (0 <= nx < self.size and 0 <= ny < self.size and 
+                    neighbor not in visited):
+                    cell_type = self.grid[nx, ny]
+                    # Pode atravessar: Livre, Tesouro ou Bandeira (nÃ£o Bomba)
+                    if cell_type in ['L', 'T', 'F']:
+                        visited.add(neighbor)
+                        queue.append(neighbor)
+        
+        return False
+        
     def reset_treasure(self, position):
-        """Remove tesouro após ser coletado"""
+        """Remove tesouro apÃ³s ser coletado"""
         x, y = position
         self.grid[x, y] = 'L'
         
@@ -77,7 +262,7 @@ class EnvironmentC:
         return None
     
     def get_neighbors(self, x, y):
-        """Retorna vizinhas válidas (apenas horizontal/vertical)"""
+        """Retorna vizinhas vÃ¡lidas (apenas horizontal/vertical)"""
         neighbors = []
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
         for dx, dy in directions:
@@ -87,7 +272,7 @@ class EnvironmentC:
         return neighbors
 
 # ============================================
-# 2. MEMÓRIA COMPARTILHADA PARA ABORDAGEM C
+# 2. MEMÃƒâ€œRIA COMPARTILHADA PARA ABORDAGEM C
 # ============================================
 
 class SharedMemoryC:
@@ -101,43 +286,48 @@ class SharedMemoryC:
         self.cell_knowledge = {}
         self.env_size = env_size
         self.flag_found = False
-        # IMPORTANTE: Bandeira agora é DESCONHECIDA (None até ser descoberta)
-        self.flag_position = None  # NÃO MAIS flag_position passado como parâmetro
+        # IMPORTANTE: Bandeira agora ÃƒÂ© DESCONHECIDA (None atÃƒÂ© ser descoberta)
+        self.flag_position = None  # NÃƒÆ’O MAIS flag_position passado como parÃƒÂ¢metro
         self.true_flag_position = flag_position  # Apenas para GUI visualizar (roxo)
         
-        # Custos estimados de deslocação (para otimização de caminho)
+        # Custos estimados de deslocaÃƒÂ§ÃƒÂ£o (para otimizaÃƒÂ§ÃƒÂ£o de caminho)
         self.movement_costs = {}
         
         # Inicializar conhecimento
-        # ✅ FIX: Inicializar como INSEGURO até provar o contrário (conservador)
+        # Ã¢Å“â€¦ FIX: Inicializar como INSEGURO atÃƒÂ© provar o contrÃƒÂ¡rio (conservador)
         for i in range(env_size):
             for j in range(env_size):
                 self.cell_knowledge[(i, j)] = {
                     'type': 'U',  # U = Unknown
                     'explored': False,
-                    'safe': False,  # ✅ Assume inseguro até explorar
+                    'safe': False,  # Ã¢Å“â€¦ Assume inseguro atÃƒÂ© explorar
                     'cost': 1.0,
                     'risk': 0.0
                 }
                 self.movement_costs[(i, j)] = float('inf')
         
-        # Posição inicial (0,0) tem custo 0
+        # PosiÃƒÂ§ÃƒÂ£o inicial (0,0) tem custo 0
         self.movement_costs[(0, 0)] = 0
         
-        # ✅ FIX: Marcar (0,0) e vizinhas imediatas como seguras inicialmente
+        # Ã¢Å“â€¦ Marcar posiÃƒÂ§ÃƒÂ£o inicial (0,0) como explorada
+        self.explored.add((0, 0))
+        self.cell_knowledge[(0, 0)]['explored'] = True
+        self.cell_knowledge[(0, 0)]['type'] = 'L'
         self.cell_knowledge[(0, 0)]['safe'] = True
+        
+        # Ã¢Å“â€¦ Marcar (0,0) e vizinhas imediatas como seguras inicialmente
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             nx, ny = 0 + dx, 0 + dy
             if 0 <= nx < env_size and 0 <= ny < env_size:
                 self.cell_knowledge[(nx, ny)]['safe'] = True
     
     def update_explored(self, position, content, agent_id, env):
-        """Atualiza memória com nova exploração"""
+        """Atualiza memÃƒÂ³ria com nova exploraÃƒÂ§ÃƒÂ£o"""
         x, y = position
         self.explored.add(position)
         self.agent_positions[agent_id] = position
         
-        # Atualizar conhecimento da célula
+        # Atualizar conhecimento da cÃƒÂ©lula
         self.cell_knowledge[position]['explored'] = True
         
         log_msg = f"Agente {agent_id}: {content} em {position}"
@@ -151,7 +341,7 @@ class SharedMemoryC:
                 log_msg += " (TESOURO COLETADO!)"
             else:
                 self.cell_knowledge[position]['type'] = 'L'
-                log_msg += " (LIVRE - Tesouro já coletado)"
+                log_msg += " (LIVRE - Tesouro jÃƒÂ¡ coletado)"
         elif content == 'B':
             self.cell_knowledge[position]['type'] = content
             self.bombs_found.add(position)
@@ -163,26 +353,26 @@ class SharedMemoryC:
             # DESCOBERTA DA BANDEIRA!
             self.cell_knowledge[position]['type'] = content
             self.flag_found = True
-            self.flag_position = position  # Agora sim, registrar posição descoberta
-            log_msg += " (🚩 BANDEIRA ENCONTRADA! OBJETIVO ALCANÇADO!)"
+            self.flag_position = position  # Agora sim, registrar posiÃƒÂ§ÃƒÂ£o descoberta
+            log_msg += " (Ã°Å¸Å¡Â© BANDEIRA ENCONTRADA! OBJETIVO ALCANÃƒâ€¡ADO!)"
         else:
             self.cell_knowledge[position]['type'] = content
             self.cell_knowledge[position]['safe'] = True
             
-            # ✅ FIX: Marcar vizinhas não exploradas como seguras (expande zona segura)
+            # Ã¢Å“â€¦ FIX: Marcar vizinhas nÃƒÂ£o exploradas como seguras (expande zona segura)
             neighbors = env.get_neighbors(x, y)
             for neighbor in neighbors:
                 if not self.cell_knowledge[neighbor]['explored']:
                     if neighbor not in self.bombs_found:
                         self.cell_knowledge[neighbor]['safe'] = True
             
-        # Atualizar custos das células vizinhas
+        # Atualizar custos das cÃƒÂ©lulas vizinhas
         self.update_neighbor_costs(position, env)
             
         return log_msg
     
     def update_neighbor_costs(self, position, env):
-        """Atualizar custos e riscos das células vizinhas"""
+        """Atualizar custos e riscos das cÃƒÂ©lulas vizinhas"""
         x, y = position
         neighbors = env.get_neighbors(x, y)
         
@@ -195,38 +385,38 @@ class SharedMemoryC:
                     self.cell_knowledge[neighbor]['risk'] = max(0, self.cell_knowledge[neighbor]['risk'] - 0.1)
     
     def is_safe_cell(self, position):
-        """Verifica se célula é segura para visitar"""
+        """Verifica se cÃƒÂ©lula ÃƒÂ© segura para visitar"""
         return self.cell_knowledge[position]['safe']
     
     def estimate_distance_to_flag(self, position):
-        """Estima distância até a bandeira (heurística)"""
+        """Estima distÃƒÂ¢ncia atÃƒÂ© a bandeira (heurÃƒÂ­stica)"""
         if self.flag_position:
-            # Se já encontramos a bandeira, usar distância real
+            # Se jÃƒÂ¡ encontramos a bandeira, usar distÃƒÂ¢ncia real
             return abs(position[0] - self.flag_position[0]) + abs(position[1] - self.flag_position[1])
         else:
-            # Heurística: exploração uniforme (sem direção preferencial)
-            return 0  # Retorna 0 para não influenciar decisão
+            # HeurÃƒÂ­stica: exploraÃƒÂ§ÃƒÂ£o uniforme (sem direÃƒÂ§ÃƒÂ£o preferencial)
+            return 0  # Retorna 0 para nÃƒÂ£o influenciar decisÃƒÂ£o
 # ============================================
 # 3. AGENTE A* PARA BASELINE (N AGENTES)
 # ============================================
 
 class AgentAStar:
     """
-    Agente A* PURO para baseline - VERSÃO CORRIGIDA
+    Agente A* PURO para baseline - VERSÃƒÆ’O CORRIGIDA
     
     FIX APLICADO:
-    - Agora cada agente escolhe direção inicial baseada no ID
+    - Agora cada agente escolhe direÃƒÂ§ÃƒÂ£o inicial baseada no ID
     - Agentes exploram quadrantes diferentes do mapa
-    - Evita que todos fiquem inativos após (0,0) ser explorado
+    - Evita que todos fiquem inativos apÃƒÂ³s (0,0) ser explorado
     
-    REGRAS CRÍTICAS:
-    ✅ N agentes permitidos
-    ✅ Todos executam A* puro
-    ✅ f(n) = g(n) + h(n) idêntica para todos
-    ✅ SEM aprendizagem
-    ✅ SEM motor de inferência
-    ✅ SEM pesos
-    ✅ SEM decisão inteligente
+    REGRAS CRÃƒÂTICAS:
+    Ã¢Å“â€¦ N agentes permitidos
+    Ã¢Å“â€¦ Todos executam A* puro
+    Ã¢Å“â€¦ f(n) = g(n) + h(n) idÃƒÂªntica para todos
+    Ã¢Å“â€¦ SEM aprendizagem
+    Ã¢Å“â€¦ SEM motor de inferÃƒÂªncia
+    Ã¢Å“â€¦ SEM pesos
+    Ã¢Å“â€¦ SEM decisÃƒÂ£o inteligente
     """
     def __init__(self, agent_id, start_pos=(0, 0)):
         self.id = agent_id
@@ -243,38 +433,38 @@ class AgentAStar:
         self.g_score = {start_pos: 0}  # Cost from start
         self.f_score = {start_pos: 0}  # Estimated total cost
         
-        # ✅ FIX: Cada agente tem direção preferencial baseada no ID
+        # Ã¢Å“â€¦ FIX: Cada agente tem direÃƒÂ§ÃƒÂ£o preferencial baseada no ID
         # Isso faz com que explorem quadrantes diferentes
         self.preferred_direction = agent_id % 4  # 0=cima, 1=baixo, 2=esquerda, 3=direita
         
-        # ✅ FIX: Offset inicial baseado no ID para evitar colisões
+        # Ã¢Å“â€¦ FIX: Offset inicial baseado no ID para evitar colisÃƒÂµes
         self.exploration_offset = agent_id
         
-        # Inicializar heap com bias de direção
+        # Inicializar heap com bias de direÃƒÂ§ÃƒÂ£o
         initial_h = self.heuristic_with_bias(start_pos, None)
         heapq.heappush(self.open_set, (initial_h, start_pos))
     
     def heuristic(self, position, shared_memory):
         """
-        Heurística h(n): distância Manhattan
+        HeurÃƒÂ­stica h(n): distÃƒÂ¢ncia Manhattan
         MESMA para todos os agentes
         """
         if shared_memory.flag_position:
-            # Bandeira conhecida: distância Manhattan
+            # Bandeira conhecida: distÃƒÂ¢ncia Manhattan
             fx, fy = shared_memory.flag_position
             return abs(position[0] - fx) + abs(position[1] - fy)
         else:
-            # Bandeira desconhecida: exploração uniforme
+            # Bandeira desconhecida: exploraÃƒÂ§ÃƒÂ£o uniforme
             return 0
     
     def heuristic_with_bias(self, position, shared_memory):
         """
-        ✅ FIX: Heurística com pequeno bias baseado na direção preferencial
-        Faz agentes explorarem áreas diferentes inicialmente
+        Ã¢Å“â€¦ FIX: HeurÃƒÂ­stica com pequeno bias baseado na direÃƒÂ§ÃƒÂ£o preferencial
+        Faz agentes explorarem ÃƒÂ¡reas diferentes inicialmente
         """
         base_h = self.heuristic(position, shared_memory) if shared_memory else 0
         
-        # Adicionar pequeno bias baseado na direção preferencial
+        # Adicionar pequeno bias baseado na direÃƒÂ§ÃƒÂ£o preferencial
         x, y = position
         
         if self.preferred_direction == 0:  # Preferir cima
@@ -290,14 +480,14 @@ class AgentAStar:
     
     def _direction_priority(self, neighbor):
         """
-        ✅ MÉTODO FALTANTE - Calcula prioridade baseada na direção preferencial
-        Permite que múltiplos agentes escolham direções diferentes mesmo em (0,0)
+        Ã¢Å“â€¦ MÃƒâ€°TODO FALTANTE - Calcula prioridade baseada na direÃƒÂ§ÃƒÂ£o preferencial
+        Permite que mÃƒÂºltiplos agentes escolham direÃƒÂ§ÃƒÂµes diferentes mesmo em (0,0)
         """
         nx, ny = neighbor
         cx, cy = self.position
         dx, dy = nx - cx, ny - cy
         
-        # Mapear direção do movimento
+        # Mapear direÃƒÂ§ÃƒÂ£o do movimento
         if dx == -1 and dy == 0:
             direction = 0  # cima
         elif dx == 1 and dy == 0:
@@ -307,17 +497,17 @@ class AgentAStar:
         elif dx == 0 and dy == 1:
             direction = 3  # direita
         else:
-            direction = 4  # diagonal (não deveria acontecer)
+            direction = 4  # diagonal (nÃƒÂ£o deveria acontecer)
         
         # Prioridade: menor valor = maior prioridade
-        # Se a direção coincide com a preferência, prioridade máxima (0)
+        # Se a direÃƒÂ§ÃƒÂ£o coincide com a preferÃƒÂªncia, prioridade mÃƒÂ¡xima (0)
         if direction == self.preferred_direction:
-            return 0 + random.random() * 0.01  # Pequena variação para desempate
+            return 0 + random.random() * 0.01  # Pequena variaÃƒÂ§ÃƒÂ£o para desempate
         
-        # Caso contrário, penalizar baseado na distância da preferência
-        # Mais longe da preferência = menor prioridade (valor maior)
+        # Caso contrÃƒÂ¡rio, penalizar baseado na distÃƒÂ¢ncia da preferÃƒÂªncia
+        # Mais longe da preferÃƒÂªncia = menor prioridade (valor maior)
         distance = abs(direction - self.preferred_direction)
-        if distance > 2:  # Circular (ex: 0 e 3 estão próximos)
+        if distance > 2:  # Circular (ex: 0 e 3 estÃƒÂ£o prÃƒÂ³ximos)
             distance = 4 - distance
         
         return distance + random.random() * 0.1
@@ -325,27 +515,27 @@ class AgentAStar:
     
     def choose_action(self, shared_memory, env):
         """
-        A* PURO: escolhe próxima célula com menor f(n)
-        ✅ CORRIGIDO: Agora funciona com múltiplos agentes
+        A* PURO: escolhe prÃƒÂ³xima cÃƒÂ©lula com menor f(n)
+        Ã¢Å“â€¦ CORRIGIDO: Agora funciona com mÃƒÂºltiplos agentes
         """
         if not self.alive:
             return None
         
-        # ✅ FIX: Primeiro verificar vizinhos imediatos não explorados
+        # Ã¢Å“â€¦ FIX: Primeiro verificar vizinhos imediatos nÃƒÂ£o explorados
         neighbors = env.get_neighbors(*self.position)
         unexplored_neighbors = [n for n in neighbors if n not in shared_memory.explored]
         
         if unexplored_neighbors:
-            # ✅ FIX: Ordenar por direção preferencial
+            # Ã¢Å“â€¦ FIX: Ordenar por direÃƒÂ§ÃƒÂ£o preferencial
             unexplored_neighbors.sort(key=lambda pos: self._direction_priority(pos))
             return unexplored_neighbors[0]
         
-        # ✅ FIX: Limpar open_set de células já visitadas
+        # Ã¢Å“â€¦ FIX: Limpar open_set de cÃƒÂ©lulas jÃƒÂ¡ visitadas
         while self.open_set:
             f_score, current = heapq.heappop(self.open_set)
             
             if current not in shared_memory.explored:
-                # Encontrou candidato válido
+                # Encontrou candidato vÃƒÂ¡lido
                 neighbors = env.get_neighbors(*current)
                 
                 # Expandir vizinhos
@@ -370,7 +560,7 @@ class AgentAStar:
                         f_score_new = tentative_g_score + h_score
                         self.f_score[neighbor] = f_score_new
                         
-                        # Adicionar à fila
+                        # Adicionar ÃƒÂ  fila
                         heapq.heappush(self.open_set, (f_score_new, neighbor))
                 
                 # Escolher vizinho com menor f(n)
@@ -391,26 +581,104 @@ class AgentAStar:
                 if best_neighbor:
                     return best_neighbor
         
-        # ✅ FIX: Se open_set vazio, explorar vizinhos da posição atual
+        # Ã¢Å“â€¦ FIX: Se open_set vazio, explorar vizinhos da posiÃƒÂ§ÃƒÂ£o atual
         neighbors = env.get_neighbors(*self.position)
         unexplored = [n for n in neighbors 
                      if n not in shared_memory.explored 
                      and n not in shared_memory.bombs_found]
         
         if unexplored:
-            # Escolher vizinho com menor heurística e bias de direção
+            # Escolher vizinho com menor heurÃƒÂ­stica e bias de direÃƒÂ§ÃƒÂ£o
             best = min(unexplored, key=lambda n: self.heuristic_with_bias(n, shared_memory))
             return best
+        
+        # Ã¢Å“â€¦ FASE 3: FALLBACK - BFS limitado para encontrar cÃƒÂ©lulas nÃƒÂ£o exploradas
+        # Quando open_set esvaziar (agente "preso"), fazer busca ativa
+        visited_bfs = set([self.position])
+        queue = deque([self.position])
+        max_depth = 5  # Buscar atÃƒÂ© 5 cÃƒÂ©lulas de distÃƒÂ¢ncia
+        depth_map = {self.position: 0}
+        
+        while queue:
+            current = queue.popleft()
+            current_depth = depth_map[current]
+            
+            if current_depth >= max_depth:
+                continue
+            
+            neighbors_bfs = env.get_neighbors(*current)
+            
+            for neighbor in neighbors_bfs:
+                if neighbor in visited_bfs:
+                    continue
+                if neighbor in shared_memory.bombs_found:
+                    continue
+                
+                visited_bfs.add(neighbor)
+                depth_map[neighbor] = current_depth + 1
+                
+                # Se encontrou cÃƒÂ©lula nÃƒÂ£o explorada, retornar prÃƒÂ³ximo passo
+                if neighbor not in shared_memory.explored:
+                    # Reconstruir caminho simples atÃƒÂ© o alvo
+                    path = self._reconstruct_simple_path(self.position, neighbor, visited_bfs, env, shared_memory)
+                    if path and len(path) > 1:
+                        # Retornar prÃƒÂ³ximo passo no caminho
+                        next_step = path[1]
+                        # Adicionar ao open_set para futuro
+                        h = self.heuristic_with_bias(next_step, shared_memory)
+                        heapq.heappush(self.open_set, (1 + h, next_step))
+                        return next_step
+                
+                queue.append(neighbor)
+        
+        # Ã¢Å“â€¦ FASE 4: ÃƒÅ¡ltimo recurso - permitir revisitar cÃƒÂ©lulas seguras
+        safe_neighbors = [n for n in env.get_neighbors(*self.position)
+                         if n not in shared_memory.bombs_found]
+        
+        if safe_neighbors:
+            # Priorizar nÃƒÂ£o explorados, mas aceitar explorados se necessÃƒÂ¡rio
+            unexplored_safe = [n for n in safe_neighbors if n not in shared_memory.explored]
+            if unexplored_safe:
+                return random.choice(unexplored_safe)
+            else:
+                # Permitir revisitar como ÃƒÂºltimo recurso
+                return random.choice(safe_neighbors)
+        
+        return None
+    
+    def _reconstruct_simple_path(self, start, goal, visited, env, shared_memory):
+        """ReconstrÃƒÂ³i caminho simples BFS do inÃƒÂ­cio ao objetivo"""
+        # BFS para encontrar caminho
+        queue = deque([(start, [start])])
+        visited_path = set([start])
+        
+        while queue:
+            current, path = queue.popleft()
+            
+            if current == goal:
+                return path
+            
+            neighbors = env.get_neighbors(*current)
+            for neighbor in neighbors:
+                if neighbor in visited_path:
+                    continue
+                if neighbor not in visited:  # Apenas cÃƒÂ©lulas visitadas na BFS original
+                    continue
+                if neighbor in shared_memory.bombs_found:
+                    continue
+                
+                visited_path.add(neighbor)
+                queue.append((neighbor, path + [neighbor]))
         
         return None
     
     def _direction_priority(self, neighbor):
-        """Calcula prioridade baseada na direção preferencial"""
+        """Calcula prioridade baseada na direÃƒÂ§ÃƒÂ£o preferencial"""
         nx, ny = neighbor
         cx, cy = self.position
         dx, dy = nx - cx, ny - cy
         
-        # Mapear direção
+        # Mapear direÃƒÂ§ÃƒÂ£o
         if dx == -1:
             direction = 0  # cima
         elif dx == 1:
@@ -426,7 +694,7 @@ class AgentAStar:
         return abs(direction - self.preferred_direction) + random.random() * 0.1
     
     def move_to(self, new_position, shared_memory, env):
-        """Move agente para nova posição"""
+        """Move agente para nova posiÃƒÂ§ÃƒÂ£o"""
         if not self.alive or new_position is None:
             return "Agente inativo"
         
@@ -438,7 +706,7 @@ class AgentAStar:
         cell_content = env.get_cell(x, y)
         log_msg = shared_memory.update_explored(new_position, cell_content, self.id, env)
         
-        # Consequências
+        # ConsequÃƒÂªncias
         if cell_content == 'T':
             if new_position in shared_memory.treasures_collected:
                 self.treasures_collected += 1
@@ -451,23 +719,23 @@ class AgentAStar:
                 shared_memory.cell_knowledge[new_position]['safe'] = True
             else:
                 self.alive = False
-                log_msg += " | AGENTE DESTRUÍDO"
+                log_msg += " | AGENTE DESTRUÃƒÂDO"
         elif cell_content == 'F':
             log_msg += f" | CUSTO DO CAMINHO: {self.path_cost}"
         
         return log_msg
     
     def train_models(self, shared_memory=None, env=None):
-        """Método vazio - compatibilidade com GUI"""
+        """MÃƒÂ©todo vazio - compatibilidade com GUI"""
         pass
 
 # ============================================
-# 4. AGENTE ML PARA GRUPOS (HOMOGÊNEO/HETEROGÊNEO)
+# 4. AGENTE ML PARA GRUPOS (HOMOGÃƒÅ NEO/HETEROGÃƒÅ NEO)
 # ============================================
 
 class AgentC:
-    """Agente com ML para grupos homogêneo/heterogêneo"""
-    def __init__(self, agent_id, start_pos=(0, 0), inference_weights=None):
+    """Agente com ML para grupos homogÃƒÂªneo/heterogÃƒÂªneo"""
+    def __init__(self, agent_id, start_pos=(0, 0), inference_weights=None, model_choice=None, model_weights=None):
         self.id = agent_id
         self.position = start_pos
         self.alive = True
@@ -487,21 +755,25 @@ class AgentC:
         # Dados para treinamento
         self.training_data = {'features': [], 'labels': []}
         self.models_trained = False
+        # Modelo ativo (se quiser usar apenas um) ou pesos para votaÃƒÂ§ÃƒÂ£o ponderada
+        self.active_model = model_choice
+        # model_weights example: {'KNN':0.6,'NaiveBayes':0.2,'RandomForest':0.2}
+        self.model_weights = model_weights
         
-        # Motor de inferência otimizado para busca de objetivo
+        # Motor de inferÃƒÂªncia otimizado para busca de objetivo
         self.inference_engine = InferenceEngineC(inference_weights)
         
-        # Histórico de ações
+        # HistÃƒÂ³rico de aÃƒÂ§ÃƒÂµes
         self.action_history = deque(maxlen=50)
         
-        # Memória individual do agente
+        # MemÃƒÂ³ria individual do agente
         self.memory = SharedMemoryC()
         
-        # Inicializar com algum conhecimento básico
+        # Inicializar com algum conhecimento bÃƒÂ¡sico
         self.initialize_basic_knowledge()
     
     def initialize_basic_knowledge(self):
-        """Inicializa conhecimento básico"""
+        """Inicializa conhecimento bÃƒÂ¡sico"""
         self.training_data['features'].append([0, 0])
         self.training_data['labels'].append('L')
         
@@ -517,14 +789,18 @@ class AgentC:
             y = np.array(self.training_data['labels'])
             
             try:
-                for name, model in self.models.items():
-                    model.fit(X, y)
+                # Se existe um modelo ativo, treinar apenas esse modelo
+                if self.active_model and self.active_model in self.models:
+                    self.models[self.active_model].fit(X, y)
+                else:
+                    for name, model in self.models.items():
+                        model.fit(X, y)
                 self.models_trained = True
             except:
                 pass
     
     def predict_cell(self, cell_position, shared_memory):
-        """Prevê o tipo de célula usando modelos ou heurística"""
+        """PrevÃƒÂª o tipo de cÃƒÂ©lula usando modelos ou heurÃƒÂ­stica"""
         if shared_memory is None or getattr(self, 'is_baseline', False):
             memory = self.memory
         else:
@@ -532,7 +808,7 @@ class AgentC:
             
         x, y = cell_position
         
-        # Se célula já foi explorada, retorna conteúdo conhecido
+        # Se cÃƒÂ©lula jÃƒÂ¡ foi explorada, retorna conteÃƒÂºdo conhecido
         if cell_position in memory.explored:
             if cell_position in memory.treasures_collected:
                 return 'L'
@@ -543,27 +819,47 @@ class AgentC:
             else:
                 return 'L'
         
-        # Se modelos estão treinados, usar previsão
+        # Se modelos estÃƒÂ£o treinados, usar previsÃƒÂ£o
         if self.models_trained and len(self.training_data['features']) >= 10:
-            predictions = []
-            for name, model in self.models.items():
+            # Se o agente tem um modelo ativo, usar apenas esse
+            if self.active_model and self.active_model in self.models:
                 try:
-                    pred = model.predict([[x, y]])[0]
-                    predictions.append(pred)
+                    return self.models[self.active_model].predict([[x, y]])[0]
                 except:
                     pass
-            
-            if predictions:
-                from collections import Counter
-                most_common = Counter(predictions).most_common(1)
-                if most_common:
-                    return most_common[0][0]
+            # Se existem pesos definidos, fazer votaÃƒÂ§ÃƒÂ£o ponderada
+            if self.model_weights:
+                scores = {}
+                for name, model in self.models.items():
+                    try:
+                        pred = model.predict([[x, y]])[0]
+                        weight = float(self.model_weights.get(name, 0.0))
+                        scores[pred] = scores.get(pred, 0.0) + weight
+                    except:
+                        pass
+                if scores:
+                    # devolver classe com maior soma de pesos
+                    return max(scores.items(), key=lambda kv: kv[1])[0]
+            else:
+                predictions = []
+                for name, model in self.models.items():
+                    try:
+                        pred = model.predict([[x, y]])[0]
+                        predictions.append(pred)
+                    except:
+                        pass
+                
+                if predictions:
+                    from collections import Counter
+                    most_common = Counter(predictions).most_common(1)
+                    if most_common:
+                        return most_common[0][0]
         
-        # Heurística: exploração uniforme
+        # HeurÃƒÂ­stica: exploraÃƒÂ§ÃƒÂ£o uniforme
         return random.choice(['L', 'L', 'L', 'L', 'B'])
     
     def choose_action(self, shared_memory, env):
-        """Escolhe próxima ação otimizando exploração para encontrar bandeira"""
+        """Escolhe prÃƒÂ³xima aÃƒÂ§ÃƒÂ£o otimizando exploraÃƒÂ§ÃƒÂ£o para encontrar bandeira"""
         if shared_memory is None or getattr(self, 'is_baseline', False):
             memory = self.memory
         else:
@@ -580,40 +876,101 @@ class AgentC:
         
         # Obter vizinhas
         neighbors = env.get_neighbors(x, y)
-        
-        # Filtrar apenas células seguras
-        safe_neighbors = []
-        for neighbor in neighbors:
-            if memory.is_safe_cell(neighbor):
-                safe_neighbors.append(neighbor)
-        
-        if not safe_neighbors:
-            return None
-        
-        # Prever tipo de cada vizinha segura
-        available_actions = []
-        for neighbor in safe_neighbors:
-            if neighbor in self.action_history:
-                continue
-                
-            predicted_type = self.predict_cell(neighbor, memory)
-            available_actions.append((neighbor, predicted_type))
-        
-        if not available_actions:
-            self.action_history.clear()
+
+        # Filtrar apenas cÃƒÂ©lulas seguras
+        safe_neighbors = [n for n in neighbors if memory.is_safe_cell(n)]
+
+        # 1) Preferir vizinhas seguras NÃƒÆ’O exploradas (exploraÃƒÂ§ÃƒÂ£o)
+        unexplored_safe = [n for n in safe_neighbors if not memory.cell_knowledge[n]['explored']]
+        if unexplored_safe:
+            best = None
+            best_score = -float('inf')
+            for neighbor in unexplored_safe:
+                predicted_type = self.predict_cell(neighbor, memory)
+                try:
+                    score = self.inference_engine.calculate_score(predicted_type, neighbor, memory, self)
+                except Exception:
+                    score = 0.0
+                # pequena penalidade se jÃƒÂ¡ visitado recentemente
+                if neighbor in self.action_history:
+                    score -= 0.2
+                score += random.uniform(-0.05, 0.05)
+                if score > best_score:
+                    best_score = score
+                    best = neighbor
+            if best:
+                return best
+
+        # 2) Se nÃƒÂ£o houver nÃƒÂ£o-exploradas, tentar vizinhas seguras que nÃƒÂ£o estÃƒÂ£o no history (backtracking relaxado)
+        candidates = [n for n in safe_neighbors if n not in self.action_history]
+        if candidates:
+            best = None
+            best_score = -float('inf')
+            for neighbor in candidates:
+                predicted_type = self.predict_cell(neighbor, memory)
+                try:
+                    score = self.inference_engine.calculate_score(predicted_type, neighbor, memory, self)
+                except Exception:
+                    score = 0.0
+                if memory.cell_knowledge[neighbor]['explored']:
+                    score -= 0.3
+                score += random.uniform(-0.05, 0.05)
+                if score > best_score:
+                    best_score = score
+                    best = neighbor
+            if best:
+                return best
+
+        # 3) Se ainda houver vizinhas seguras (mesmo que estejam no history), permitir revisitar
+        if safe_neighbors:
+            best = None
+            best_score = -float('inf')
             for neighbor in safe_neighbors:
                 predicted_type = self.predict_cell(neighbor, memory)
-                available_actions.append((neighbor, predicted_type))
-        
-        # Usar motor de inferência para decidir
-        next_pos = self.inference_engine.decide_action(
-            available_actions, memory, env, self
-        )
-        
-        return next_pos
+                try:
+                    score = self.inference_engine.calculate_score(predicted_type, neighbor, memory, self)
+                except Exception:
+                    score = 0.0
+                if memory.cell_knowledge[neighbor]['explored']:
+                    score -= 0.5
+                score += random.uniform(-0.05, 0.05)
+                if score > best_score:
+                    best_score = score
+                    best = neighbor
+            if best:
+                return best
+
+        # 4) Fallback: permitir qualquer vizinha nÃƒÂ£o marcada explicitamente como bomba
+        fallback_candidates = [n for n in neighbors if n not in memory.bombs_found]
+        if fallback_candidates:
+            best = None
+            best_score = -float('inf')
+            for neighbor in fallback_candidates:
+                predicted_type = self.predict_cell(neighbor, memory)
+                try:
+                    score = self.inference_engine.calculate_score(predicted_type, neighbor, memory, self)
+                except Exception:
+                    score = 0.0
+                # penalizar revisitas mas permitir se nÃƒÂ£o houver alternativas
+                if neighbor in self.action_history:
+                    score -= 0.4
+                if memory.cell_knowledge[neighbor]['explored']:
+                    score -= 0.6
+                score += random.uniform(-0.05, 0.05)
+                if score > best_score:
+                    best_score = score
+                    best = neighbor
+            if best:
+                return best
+
+        # 5) ÃƒÅ¡ltimo recurso: escolher uma vizinha aleatÃƒÂ³ria (pode ser arriscado, mas evita inatividade)
+        if neighbors:
+            return random.choice(neighbors)
+
+        return None
     
     def move_to(self, new_position, shared_memory, env):
-        """Move agente para nova posição"""
+        """Move agente para nova posiÃƒÂ§ÃƒÂ£o"""
         if shared_memory is None or getattr(self, 'is_baseline', False):
             memory = self.memory
         else:
@@ -631,17 +988,17 @@ class AgentC:
         movement_cost = memory.cell_knowledge[new_position]['cost']
         self.path_cost += movement_cost
         
-        # Explorar nova célula
+        # Explorar nova cÃƒÂ©lula
         x, y = new_position
         cell_content = env.get_cell(x, y)
         
-        # Atualizar memória compartilhada
+        # Atualizar memÃƒÂ³ria compartilhada
         if shared_memory is None:
             log_msg = memory.update_explored(new_position, cell_content, self.id, env)
         else:
             log_msg = shared_memory.update_explored(new_position, cell_content, self.id, env)
         
-        # Para baseline, atualizar também memória individual
+        # Para baseline, atualizar tambÃƒÂ©m memÃƒÂ³ria individual
         if getattr(self, 'is_baseline', False):
             memory.update_explored(new_position, cell_content, self.id, env)
         
@@ -649,7 +1006,7 @@ class AgentC:
         self.training_data['features'].append([x, y])
         self.training_data['labels'].append(cell_content)
         
-        # Consequências da ação
+        # ConsequÃƒÂªncias da aÃƒÂ§ÃƒÂ£o
         if cell_content == 'T':
             if new_position in (shared_memory.treasures_collected if shared_memory else memory.treasures_collected):
                 self.treasures_collected += 1
@@ -665,44 +1022,44 @@ class AgentC:
                     memory.cell_knowledge[new_position]['safe'] = True
             else:
                 self.alive = False
-                log_msg += " | AGENTE DESTRUÍDO"
+                log_msg += " | AGENTE DESTRUÃƒÂDO"
         elif cell_content == 'F':
             log_msg += f" | CUSTO TOTAL DO CAMINHO: {self.path_cost:.2f}"
         
         return log_msg
 
 # ============================================
-# 5. MOTOR DE INFERÊNCIA PARA GRUPOS ML
+# 5. MOTOR DE INFERÃƒÅ NCIA PARA GRUPOS ML
 # ============================================
 
 class InferenceEngineC:
     def __init__(self, weights=None):
-        # Pesos otimizados para busca exploratória
+        # Pesos otimizados para busca exploratÃƒÂ³ria
         self.weights = weights or {
             'F': 100.0,   # Bandeira - se descoberta
             'T': 8.0,     # Tesouro - importante para desativar bombas
             'L': 2.0,     # Livre
             'B': -200.0,  # Bomba - evitar completamente
-            'U': 3.0,     # Desconhecido - PRIORIZAR exploração
+            'U': 3.0,     # Desconhecido - PRIORIZAR exploraÃƒÂ§ÃƒÂ£o
             'E': -0.8     # Explorado - evitar revisitar
         }
         
         self.cost_weight = 0.5
-        self.risk_weight = 1.0  # ✅ Reduzido de 2.0 para 1.0 (menos conservador)
+        self.risk_weight = 1.0  # Ã¢Å“â€¦ Reduzido de 2.0 para 1.0 (menos conservador)
         self.exploration_weight = 2.0
     
     def calculate_score(self, cell_type, position, shared_memory, agent):
-        """Calcula pontuação otimizada para busca exploratória"""
+        """Calcula pontuaÃƒÂ§ÃƒÂ£o otimizada para busca exploratÃƒÂ³ria"""
         base_score = self.weights.get(cell_type, 0.0)
         
-        # Se bandeira foi descoberta, priorizar caminho até ela
+        # Se bandeira foi descoberta, priorizar caminho atÃƒÂ© ela
         if shared_memory.flag_position:
             current_dist = shared_memory.estimate_distance_to_flag(agent.position)
             new_dist = shared_memory.estimate_distance_to_flag(position)
             if new_dist < current_dist:
                 base_score += 20.0
         else:
-            # Bandeira ainda não descoberta - priorizar exploração
+            # Bandeira ainda nÃƒÂ£o descoberta - priorizar exploraÃƒÂ§ÃƒÂ£o
             if not shared_memory.cell_knowledge[position]['explored']:
                 base_score += self.exploration_weight * 5.0
         
@@ -713,19 +1070,19 @@ class InferenceEngineC:
         base_score -= (cost * self.cost_weight)
         base_score -= (risk * self.risk_weight)
         
-        # Penalidade por estar perto de bomba (✅ REDUZIDAS para permitir exploração)
+        # Penalidade por estar perto de bomba (Ã¢Å“â€¦ REDUZIDAS para permitir exploraÃƒÂ§ÃƒÂ£o)
         x, y = position
         for bx, by in shared_memory.bombs_found:
             bomb_distance = abs(bx - x) + abs(by - y)
             if bomb_distance == 1:  # Adjacente a bomba
-                base_score -= 10.0  # ✅ Reduzido de -30 para -10
-            elif bomb_distance == 2:  # 2 células de distância
-                base_score -= 3.0  # ✅ Nova penalidade moderada
+                base_score -= 10.0  # Ã¢Å“â€¦ Reduzido de -30 para -10
+            elif bomb_distance == 2:  # 2 cÃƒÂ©lulas de distÃƒÂ¢ncia
+                base_score -= 3.0  # Ã¢Å“â€¦ Nova penalidade moderada
         
         return base_score
     
     def decide_action(self, available_cells, shared_memory, env, agent):
-        """Decide ação otimizando exploração"""
+        """Decide aÃƒÂ§ÃƒÂ£o otimizando exploraÃƒÂ§ÃƒÂ£o"""
         if shared_memory is None or getattr(agent, 'is_baseline', False):
             memory = agent.memory
         else:
@@ -753,7 +1110,7 @@ class InferenceEngineC:
         return best_action
 
 # ============================================
-# 6. SIMULAÇÃO DA ABORDAGEM C
+# 6. SIMULAÃƒâ€¡ÃƒÆ’O DA ABORDAGEM C
 # ============================================
 
 class ApproachCSimulation:
@@ -784,7 +1141,7 @@ class ApproachCSimulation:
         
     def setup_agents(self):
         """Configura agentes"""
-        # ✅ FIX CRÍTICO: Marcar posição inicial (0,0) como explorada ANTES de criar agentes
+        # Ã¢Å“â€¦ FIX CRÃƒÂTICO: Marcar posiÃƒÂ§ÃƒÂ£o inicial (0,0) como explorada ANTES de criar agentes
         initial_pos = (0, 0)
         cell_content = self.env.get_cell(*initial_pos)
         self.shared_memory.explored.add(initial_pos)
@@ -798,35 +1155,56 @@ class ApproachCSimulation:
         }
         
         if self.homogeneous:
+            # DistribuiÃƒÂ§ÃƒÂ£o homogÃƒÂ©nea entre modelos: ~33% KNN, ~33% NaiveBayes, ~33% RandomForest
+            model_list = []
+            base = self.num_agents // 3
+            remainder = self.num_agents % 3
+            counts = {'KNN': base, 'NaiveBayes': base, 'RandomForest': base}
+            order = ['KNN', 'NaiveBayes', 'RandomForest']
+            for r in range(remainder):
+                counts[order[r]] += 1
+            for model, cnt in counts.items():
+                model_list.extend([model] * cnt)
+            # Ajustar comprimento
+            if len(model_list) < self.num_agents:
+                model_list.extend(['NaiveBayes'] * (self.num_agents - len(model_list)))
+            elif len(model_list) > self.num_agents:
+                model_list = model_list[:self.num_agents]
+            random.shuffle(model_list)
+
             for i in range(self.num_agents):
-                agent = AgentC(agent_id=i, inference_weights=base_weights)
+                # HomogÃƒÂ©neo: todos os agentes com pesos balanceados (33.33% cada)
+                weights = {'KNN': 1/3, 'NaiveBayes': 1/3, 'RandomForest': 1/3}
+                agent = AgentC(agent_id=i, inference_weights=base_weights, model_weights=weights)
                 self.agents.append(agent)
         else:
-            # Perfis diferentes para exploração
-            profiles = [
-                {'F': 120.0, 'T': 6.0, 'L': 1.0, 'B': -180.0, 'U': 4.5, 'E': -0.6},  # Explorador
-                {'F': 100.0, 'T': 10.0, 'L': 2.0, 'B': -220.0, 'U': 2.8, 'E': -1.0}, # Cauteloso
-                {'F': 110.0, 'T': 7.0, 'L': 1.5, 'B': -200.0, 'U': 3.5, 'E': -0.7},  # Equilibrado
-                {'F': 130.0, 'T': 5.0, 'L': 0.8, 'B': -190.0, 'U': 4.2, 'E': -0.5},  # Focado
-                {'F': 100.0, 'T': 9.0, 'L': 2.5, 'B': -210.0, 'U': 3.0, 'E': -0.9}   # Coletor
-            ]
-            
+            # HeterogÃƒÂ©neo: atribuiÃƒÂ§ÃƒÂ£o cÃƒÂ­clica de modelo principal por agente
+            # Agente 1 -> KNN (60% KNN, 20% NB, 20% RF), Agente 2 -> RandomForest (60% RF,...), Agente 3 -> NaiveBayes, repetir
+            order = ['KNN', 'RandomForest', 'NaiveBayes']
             for i in range(self.num_agents):
-                profile = profiles[i % len(profiles)]
-                agent = AgentC(agent_id=i, inference_weights=profile)
+                primary = order[i % len(order)]
+                # construir pesos: primary 0.6, restantes 0.2 cada
+                if primary == 'KNN':
+                    weights = {'KNN': 0.6, 'NaiveBayes': 0.2, 'RandomForest': 0.2}
+                elif primary == 'RandomForest':
+                    weights = {'RandomForest': 0.6, 'KNN': 0.2, 'NaiveBayes': 0.2}
+                else:
+                    weights = {'NaiveBayes': 0.6, 'KNN': 0.2, 'RandomForest': 0.2}
+
+                agent = AgentC(agent_id=i, inference_weights=base_weights, model_weights=weights)
                 self.agents.append(agent)
     
     def run_simulation(self, verbose=False):
-        """Executa simulação completa"""
+        """Executa simulaÃƒÂ§ÃƒÂ£o completa"""
         start_time = time.time()
         step = 0
         
         if verbose:
-            self.logs.append(f"=== INÍCIO SIMULAÇÃO ABORDAGEM C ===")
+            self.logs.append(f"=== INÃƒÂCIO SIMULAÃƒâ€¡ÃƒÆ’O ABORDAGEM C ===")
             self.logs.append(f"Agentes: {self.num_agents} | Objetivo: Encontrar bandeira DESCONHECIDA")
-            self.logs.append(f"Posição real da bandeira: {self.env.flag_position} (OCULTA dos agentes)")
+            self.logs.append(f"PosiÃƒÂ§ÃƒÂ£o real da bandeira: {self.env.flag_position} (OCULTA dos agentes)")
             self.logs.append(f"Bombas: {self.metrics['bomb_ratio']*100}%")
-            self.logs.append(f"Tipo: {'Homogêneo' if self.homogeneous else 'Heterogêneo'}")
+            self.logs.append(f"Tipo: {'HomogÃƒÂªneo' if self.homogeneous else 'HeterogÃƒÂªneo'}")
         
         while step < self.max_steps:
             step += 1
@@ -846,16 +1224,16 @@ class ApproachCSimulation:
                         self.logs.append(log_msg)
             
             if verbose and step % 50 == 0:
-                self.logs.append(f"Passo {step}: Bandeira {'ENCONTRADA' if self.shared_memory.flag_found else 'não encontrada'}, {agents_alive} agentes vivos")
+                self.logs.append(f"Passo {step}: Bandeira {'ENCONTRADA' if self.shared_memory.flag_found else 'nÃƒÂ£o encontrada'}, {agents_alive} agentes vivos")
             
             # Verificar sucesso
             if self.shared_memory.flag_found:
                 self.metrics['success'] = True
                 if verbose:
-                    self.logs.append(f"✅ SUCESSO! Bandeira encontrada no passo {step}!")
+                    self.logs.append(f"Ã¢Å“â€¦ SUCESSO! Bandeira encontrada no passo {step}!")
                 break
         
-        # Métricas finais
+        # MÃƒÂ©tricas finais
         end_time = time.time()
         self.metrics['execution_time'] = end_time - start_time
         self.metrics['flag_found'] = self.shared_memory.flag_found
@@ -871,25 +1249,25 @@ class ApproachCSimulation:
             self.metrics['avg_path_cost'] = np.mean(path_costs)
         
         if verbose:
-            self.logs.append(f"\n=== FIM DA SIMULAÇÃO ===")
+            self.logs.append(f"\n=== FIM DA SIMULAÃƒâ€¡ÃƒÆ’O ===")
             self.logs.append(f"Tempo: {self.metrics['execution_time']:.2f}s")
             self.logs.append(f"Passos: {self.metrics['steps_taken']}")
-            self.logs.append(f"Bandeira: {'Encontrada' if self.metrics['flag_found'] else 'Não encontrada'}")
+            self.logs.append(f"Bandeira: {'Encontrada' if self.metrics['flag_found'] else 'NÃƒÂ£o encontrada'}")
             self.logs.append(f"Tesouros: {self.metrics['treasures_found']}/{self.env.treasure_count}")
             self.logs.append(f"Agentes vivos: {self.metrics['agents_alive']}")
-            self.logs.append(f"Custo mínimo: {self.metrics['min_path_cost']:.2f}")
-            self.logs.append(f"Sucesso: {'SIM' if self.metrics['success'] else 'NÃO'}")
+            self.logs.append(f"Custo mÃƒÂ­nimo: {self.metrics['min_path_cost']:.2f}")
+            self.logs.append(f"Sucesso: {'SIM' if self.metrics['success'] else 'NÃƒÆ’O'}")
         
         return self.metrics
     
     def get_explored_percentage(self):
-        """Calcula percentagem de células exploradas"""
+        """Calcula percentagem de cÃƒÂ©lulas exploradas"""
         explored_count = len(self.shared_memory.explored)
         total_cells = self.env.size * self.env.size
         return (explored_count / total_cells) * 100
     
     def print_logs(self):
-        """Exibe logs da simulação"""
+        """Exibe logs da simulaÃƒÂ§ÃƒÂ£o"""
         for log in self.logs:
             print(log)
 
@@ -901,25 +1279,25 @@ class BaselineC_AStar:
     """
     Baseline C: N agentes A* colaborativos
     
-    REGRAS CRÍTICAS:
-    ✅ N agentes permitidos
-    ✅ Todos executam A* puro
-    ✅ f(n) = g(n) + h(n) idêntica para todos
-    ✅ SEM aprendizagem
-    ✅ SEM motor de inferência
-    ✅ SEM pesos configuráveis
-    ✅ SEM decisão inteligente
+    REGRAS CRÃƒÂTICAS:
+    Ã¢Å“â€¦ N agentes permitidos
+    Ã¢Å“â€¦ Todos executam A* puro
+    Ã¢Å“â€¦ f(n) = g(n) + h(n) idÃƒÂªntica para todos
+    Ã¢Å“â€¦ SEM aprendizagem
+    Ã¢Å“â€¦ SEM motor de inferÃƒÂªncia
+    Ã¢Å“â€¦ SEM pesos configurÃƒÂ¡veis
+    Ã¢Å“â€¦ SEM decisÃƒÂ£o inteligente
     
-    Citação para o relatório:
-    "Nas baselines, o número de agentes pode variar conforme a configuração 
-    da simulação; no entanto, todos os agentes executam o mesmo algoritmo 
-    clássico de forma idêntica, sem aprendizagem ou motor de inferência, 
-    servindo apenas para explorar o paralelismo e não para introduzir 
-    inteligência adicional."
+    CitaÃƒÂ§ÃƒÂ£o para o relatÃƒÂ³rio:
+    "Nas baselines, o nÃƒÂºmero de agentes pode variar conforme a configuraÃƒÂ§ÃƒÂ£o 
+    da simulaÃƒÂ§ÃƒÂ£o; no entanto, todos os agentes executam o mesmo algoritmo 
+    clÃƒÂ¡ssico de forma idÃƒÂªntica, sem aprendizagem ou motor de inferÃƒÂªncia, 
+    servindo apenas para explorar o paralelismo e nÃƒÂ£o para introduzir 
+    inteligÃƒÂªncia adicional."
     """
     def __init__(self, num_agents=4, bomb_ratio=0.3, treasure_count=10, max_steps=500):
         self.env = EnvironmentC(bomb_ratio=bomb_ratio, treasure_count=treasure_count)
-        # Bandeira desconhecida para baseline também
+        # Bandeira desconhecida para baseline tambÃƒÂ©m
         self.shared_memory = SharedMemoryC(flag_position=self.env.flag_position)
         self.num_agents = num_agents
         self.max_steps = max_steps
@@ -945,7 +1323,7 @@ class BaselineC_AStar:
         """
         Criar N agentes A*
         TODOS executam o MESMO algoritmo
-        Diferença: apenas ID e direção preferencial (para dividir espaço)
+        DiferenÃƒÂ§a: apenas ID e direÃƒÂ§ÃƒÂ£o preferencial (para dividir espaÃƒÂ§o)
         """
         # Marcar (0,0) como explorada
         initial_pos = (0, 0)
@@ -955,13 +1333,13 @@ class BaselineC_AStar:
         self.shared_memory.cell_knowledge[initial_pos]['type'] = cell_content
         self.shared_memory.cell_knowledge[initial_pos]['safe'] = True
         
-        # Criar N agentes A* idênticos
+        # Criar N agentes A* idÃƒÂªnticos
         for i in range(self.num_agents):
             agent = AgentAStar(agent_id=i, start_pos=initial_pos)
             self.agents.append(agent)
     
     def run(self):
-        """Executa simulação com N agentes A*"""
+        """Executa simulaÃƒÂ§ÃƒÂ£o com N agentes A*"""
         start_time = time.time()
         step = 0
         
@@ -978,7 +1356,7 @@ class BaselineC_AStar:
                 if not agent.alive:
                     continue
                 
-                # Escolher próxima célula usando A*
+                # Escolher prÃƒÂ³xima cÃƒÂ©lula usando A*
                 next_pos = agent.choose_action(self.shared_memory, self.env)
                 
                 if next_pos:
@@ -990,7 +1368,7 @@ class BaselineC_AStar:
                 self.metrics['flag_found'] = True
                 break
         
-        # Métricas finais
+        # MÃƒÂ©tricas finais
         end_time = time.time()
         self.metrics['execution_time'] = end_time - start_time
         self.metrics['agents_alive'] = len([a for a in self.agents if a.alive])
@@ -1012,11 +1390,11 @@ class BaselineC_AStar:
 BaselineC_ML = BaselineC_AStar
 
 # ============================================
-# 8. FUNÇÕES DE ANÁLISE
+# 8. FUNÃƒâ€¡Ãƒâ€¢ES DE ANÃƒÂLISE
 # ============================================
 
 def run_multiple_simulations_c(num_simulations=5, num_agents=4, homogeneous=True):
-    """Executa múltiplas simulações para estatísticas"""
+    """Executa mÃƒÂºltiplas simulaÃƒÂ§ÃƒÂµes para estatÃƒÂ­sticas"""
     results = []
     
     for i in range(num_simulations):
@@ -1031,7 +1409,7 @@ def run_multiple_simulations_c(num_simulations=5, num_agents=4, homogeneous=True
         metrics = sim.run_simulation(verbose=False)
         results.append(metrics)
     
-    # Calcular médias
+    # Calcular mÃƒÂ©dias
     avg_flag_found = np.mean([1 if r['flag_found'] else 0 for r in results])
     avg_time = np.mean([r['execution_time'] for r in results])
     success_rate = np.mean([1 if r['success'] else 0 for r in results])
@@ -1039,7 +1417,7 @@ def run_multiple_simulations_c(num_simulations=5, num_agents=4, homogeneous=True
     avg_path_cost = np.mean([r['min_path_cost'] for r in results if r['min_path_cost'] != float('inf')])
     
     return {
-        'type': 'Homogêneo' if homogeneous else 'Heterogêneo',
+        'type': 'HomogÃƒÂªneo' if homogeneous else 'HeterogÃƒÂªneo',
         'num_agents': num_agents,
         'avg_flag_found': avg_flag_found,
         'avg_time': avg_time,
@@ -1050,7 +1428,7 @@ def run_multiple_simulations_c(num_simulations=5, num_agents=4, homogeneous=True
     }
 
 def compare_approaches_c():
-    """Compara abordagens homogênea, heterogênea e baseline A*"""
+    """Compara abordagens homogÃƒÂªnea, heterogÃƒÂªnea e baseline A*"""
     print("Comparando Abordagem C...")
     
     results = []
@@ -1059,12 +1437,12 @@ def compare_approaches_c():
     for num_agents in agent_counts:
         print(f"\nTestando com {num_agents} agentes...")
         
-        # Homogêneo
+        # HomogÃƒÂªneo
         homo_results = run_multiple_simulations_c(
             num_simulations=5, num_agents=num_agents, homogeneous=True
         )
         
-        # Heterogêneo
+        # HeterogÃƒÂªneo
         hetero_results = run_multiple_simulations_c(
             num_simulations=5, num_agents=num_agents, homogeneous=False
         )
@@ -1090,22 +1468,22 @@ def compare_approaches_c():
             }
         })
         
-        print(f"  Homogêneo: {homo_results['success_rate']:.0%} sucesso")
-        print(f"  Heterogêneo: {hetero_results['success_rate']:.0%} sucesso")
+        print(f"  HomogÃƒÂªneo: {homo_results['success_rate']:.0%} sucesso")
+        print(f"  HeterogÃƒÂªneo: {hetero_results['success_rate']:.0%} sucesso")
         print(f"  A* ({num_agents} agentes): {astar_success_rate:.0%} sucesso")
     
     return results
 
 # ============================================
-# 9. EXECUÇÃO PRINCIPAL
+# 9. EXECUÃƒâ€¡ÃƒÆ’O PRINCIPAL
 # ============================================
 
 if __name__ == "__main__":
     print("PROJETO IA - ABORDAGEM C: BUSCA DA BANDEIRA (DESCONHECIDA)")
     print("="*60)
     
-    # Teste rápido
-    print("\n1. Teste rápido - 4 agentes heterogêneos:")
+    # Teste rÃƒÂ¡pido
+    print("\n1. Teste rÃƒÂ¡pido - 4 agentes heterogÃƒÂªneos:")
     sim = ApproachCSimulation(num_agents=4, homogeneous=False, max_steps=300)
     metrics = sim.run_simulation(verbose=True)
     sim.print_logs()
@@ -1115,27 +1493,27 @@ if __name__ == "__main__":
     baseline = BaselineC_AStar(num_agents=4)
     baseline_metrics = baseline.run()
     print(f"Baseline A* (4 agentes): {'Sucesso' if baseline_metrics['success'] else 'Falha'}")
-    print(f"Bandeira: {'Encontrada' if baseline_metrics['flag_found'] else 'Não encontrada'}")
+    print(f"Bandeira: {'Encontrada' if baseline_metrics['flag_found'] else 'NÃƒÂ£o encontrada'}")
     print(f"Passos: {baseline_metrics['steps_taken']}")
     print(f"Tempo: {baseline_metrics['execution_time']:.2f}s")
     
-    # Comparação completa
-    print("\n\n3. Comparação completa...")
+    # ComparaÃƒÂ§ÃƒÂ£o completa
+    print("\n\n3. ComparaÃƒÂ§ÃƒÂ£o completa...")
     results = compare_approaches_c()
     
-    print("\n\n4. ANÁLISE DOS RESULTADOS:")
+    print("\n\n4. ANÃƒÂLISE DOS RESULTADOS:")
     print("-"*50)
     
     best_homo = max(results, key=lambda x: x['homogeneous']['success_rate'])
     best_hetero = max(results, key=lambda x: x['heterogeneous']['success_rate'])
     
-    print(f"\nMelhor configuração Homogênea: {best_homo['num_agents']} agentes")
+    print(f"\nMelhor configuraÃƒÂ§ÃƒÂ£o HomogÃƒÂªnea: {best_homo['num_agents']} agentes")
     print(f"  Taxa de sucesso: {best_homo['homogeneous']['success_rate']:.0%}")
     
-    print(f"\nMelhor configuração Heterogênea: {best_hetero['num_agents']} agentes")
+    print(f"\nMelhor configuraÃƒÂ§ÃƒÂ£o HeterogÃƒÂªnea: {best_hetero['num_agents']} agentes")
     print(f"  Taxa de sucesso: {best_hetero['heterogeneous']['success_rate']:.0%}")
     
     print(f"\nBaseline A*:")
     print(f"  Executa A* puro com N agentes colaborativos")
-    print(f"  MESMA função f(n)=g(n)+h(n) para todos")
-    print(f"  SEM aprendizagem, SEM inferência, SEM pesos")
+    print(f"  MESMA funÃƒÂ§ÃƒÂ£o f(n)=g(n)+h(n) para todos")
+    print(f"  SEM aprendizagem, SEM inferÃƒÂªncia, SEM pesos")

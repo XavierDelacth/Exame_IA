@@ -1,4 +1,4 @@
-from abordagem_a import ApproachASimulation
+from abordagem.abordagem_a import ApproachASimulation
 
 print('Testando abordagem B com algoritmo greedy...')
 sim = ApproachASimulation(num_agents=2, bomb_ratio=0.3, treasure_count=0, homogeneous=True, max_steps=10, approach='B')

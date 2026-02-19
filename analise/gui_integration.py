@@ -5,8 +5,8 @@
 import sys
 from pathlib import Path
 
-# Importar módulo de análise comparativa
-from comparative_analysis import (
+# Importar módulo de análise comparativa (dentro do pacote analise)
+from .comparative_analysis import (
     DataStorage, MetricsCalculator, ComparativeAnalyzer,
     ComparisonVisualizer, create_comparison_window
 )
@@ -107,10 +107,101 @@ class ComparativeExtension:
             # Adicionar ao lado do botão de comparação existente
             ttk.Button(
                 self.gui.compare_button.master,
-                text="📊 COMPARAÇÃO AVANÇADA",
-                command=self.open_comparison_window,
+                text="🔬 SIMULAÇÃO AVANÇADA",
+                command=self.open_simulation_runner,
                 style="Start.TButton"
             ).pack(fill='x', pady=5)
+
+    def open_simulation_runner(self):
+        """Abre e inicia execução das simulações em lote (background)."""
+        try:
+            # Rodar em thread para não bloquear a GUI
+            import threading
+
+            t = threading.Thread(target=self.run_batch_simulations)
+            t.daemon = True
+            t.start()
+            self.gui.log("🔬 Execução em lote iniciada (30 sims/grupo por abordagem)", "INFO")
+        except Exception as e:
+            self.gui.log(f"Erro ao iniciar execução em lote: {e}", "ERROR")
+
+    def run_batch_simulations(self, runs_per_group=30, num_agents=4, bomb_ratio=0.3, treasure_count=12, max_steps=300):
+        """Executa em lote as simulações para cada abordagem e grupo e salva no storage.
+
+        Organização de salvamento: storage.save_result(approach, group_type, metrics, parameters)
+        """
+        try:
+            approaches = ['A', 'B', 'C']
+            groups = ['homogeneous', 'heterogeneous', 'baseline']
+
+            for approach in approaches:
+                for group in groups:
+                    for i in range(runs_per_group):
+                        # Instanciar simulação correta por abordagem/grupo
+                        if approach == 'A':
+                            if group == 'baseline':
+                                from abordagem.abordagem_a import BaselineSimulation as SimClass
+                                sim = SimClass(num_agents=num_agents, bomb_ratio=bomb_ratio, treasure_count=treasure_count, max_steps=max_steps)
+                                metrics = sim.run_simulation(verbose=False)
+                            else:
+                                from abordagem.abordagem_a import ApproachASimulation as SimClass
+                                sim = SimClass(num_agents=num_agents, bomb_ratio=bomb_ratio, treasure_count=treasure_count, homogeneous=(group=='homogeneous'), max_steps=max_steps)
+                                metrics = sim.run_simulation(verbose=False)
+                        elif approach == 'B':
+                            if group == 'baseline':
+                                from abordagem.abordagem_a import BaselineB_BFS
+                                sim = BaselineB_BFS(bomb_ratio=bomb_ratio, max_steps=max_steps)
+                                metrics = sim.run()
+                                # Wrap to mimic expected sim object
+                                class _SimWrap: pass
+                                sim_wrapper = _SimWrap()
+                                sim_wrapper.env = sim.env
+                                sim_wrapper.metrics = metrics
+                                sim = sim_wrapper
+                            else:
+                                from abordagem.abordagem_b import ApproachBSimulation as SimClass
+                                sim = SimClass(num_agents=num_agents, bomb_ratio=bomb_ratio, homogeneous=(group=='homogeneous'), max_steps=max_steps)
+                                metrics = sim.run_simulation() if hasattr(sim, 'run_simulation') else sim.run()
+                        elif approach == 'C':
+                            if group == 'baseline':
+                                from abordagem.abordagem_a import BaselineC_AStar as SimClass
+                                sim = SimClass(bomb_ratio=bomb_ratio, treasure_count=treasure_count, max_steps=max_steps)
+                                metrics = sim.run()
+                                class _SimWrapC: pass
+                                sim_wrapper = _SimWrapC()
+                                sim_wrapper.env = sim.env
+                                sim_wrapper.metrics = metrics
+                                sim = sim_wrapper
+                            else:
+                                from abordagem.abordagem_c import ApproachCSimulation as SimClass
+                                sim = SimClass(num_agents=num_agents, bomb_ratio=bomb_ratio, treasure_count=treasure_count, homogeneous=(group=='homogeneous'), max_steps=max_steps)
+                                metrics = sim.run_simulation(verbose=False)
+                        else:
+                            continue
+
+                        # Em alguns casos metrics são retornos diretos (dict)
+                        sim_metrics = getattr(sim, 'metrics', metrics if isinstance(metrics, dict) else {})
+
+                        parameters = {
+                            'num_agents': num_agents,
+                            'bomb_ratio': bomb_ratio,
+                            'treasure_count': treasure_count,
+                            'max_steps': max_steps,
+                            'homogeneous': (group == 'homogeneous')
+                        }
+
+                        # Salvar usando DataStorage
+                        try:
+                            self.storage.save_result(approach, group, sim_metrics, parameters)
+                            self.gui.log(f"Salvo: Abordagem {approach} | Grupo {group} | Run {i+1}", "INFO")
+                        except Exception as e:
+                            self.gui.log(f"Erro ao salvar resultado: {e}", "ERROR")
+
+            self.gui.log("🔬 Execução em lote concluída e salva em simulation_results/all_results.json", "SUCCESS")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.gui.log(f"Erro durante execução em lote: {e}", "ERROR")
     
     def get_statistics_summary(self):
         """Retorna resumo estatístico para exibição"""
@@ -142,7 +233,7 @@ def integrate_comparison_system(gui_instance):
     - Armazenamento persistente
     
     Uso no gui.py:
-        from gui_integration import integrate_comparison_system
+        from analise.gui_integration import integrate_comparison_system
         
         class IAProjectGUI:
             def __init__(self, root):
@@ -168,7 +259,7 @@ GUIA DE INTEGRAÇÃO: Sistema de Análise Comparativa
 1. IMPORTAÇÃO
    No início do gui.py, adicionar:
    
-   from gui_integration import integrate_comparison_system
+   from analise.gui_integration import integrate_comparison_system
 
 2. INICIALIZAÇÃO
    No método __init__ da classe IAProjectGUI, após setup_ui():
@@ -297,6 +388,7 @@ def print_integration_guide():
 # ============================================
 
 if __name__ == "__main__":
+    import numpy as np
     print_integration_guide()
     
     # Demonstração básica

@@ -1,4 +1,3 @@
-# abordagem_a_corrigida.py
 import numpy as np
 import random
 import time
@@ -12,76 +11,86 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ============================================
-# 1. AMBIENTE CORRIGIDO
+# 1. AMBIENTE BALANCEADO PARA ABORDAGEM A
 # ============================================
 
 class Environment:
     def __init__(self, size=10, bomb_ratio=0.3, treasure_count=12, approach='A'):
+        """
+        Ambiente para Abordagem A com balanceamento melhorado.
+        
+        Args:
+            size: Tamanho do grid (size x size)
+            bomb_ratio: Proporção de bombas (0.2 a 0.8)
+            treasure_count: Número de tesouros
+            approach: Tipo de abordagem ('A', 'B' ou 'C')
+        """
         self.size = size
         self.grid = np.empty((size, size), dtype=object)
         self.original_grid = None
         self.treasure_count = treasure_count
-        self.bomb_ratio = bomb_ratio
+        
+        # Garantir que bomb_ratio esteja entre 20% e 80%
+        self.bomb_ratio = max(0.2, min(0.8, bomb_ratio))
         self.approach = approach.upper()
         self.flag_position = None  # Para abordagem C
+        
         self.generate_environment()
         
     def generate_environment(self):
-        """Gera ambiente baseado na abordagem"""
+        """Gera ambiente baseado na abordagem com balanceamento"""
         total_cells = self.size * self.size
-        
-        # Criar lista de todas as posições
         all_positions = [(i, j) for i in range(self.size) for j in range(self.size)]
         
         if self.approach == 'A':
-            # Abordagem A: Tesouros e bombas
-            # Garantir que tesouros não sejam mais que 20% do ambiente
-            max_treasures = int(total_cells * 0.2)
-            self.treasure_count = min(self.treasure_count, max_treasures)
-            
-            # Escolher posições para tesouros
-            treasure_positions = random.sample(all_positions, self.treasure_count)
-            
-            # Calcular número de bombas baseado na proporção
-            bomb_count = int((total_cells - self.treasure_count) * self.bomb_ratio)
-            
-            # Posições restantes para bombas e células livres
-            remaining_positions = [pos for pos in all_positions if pos not in treasure_positions]
-            bomb_positions = random.sample(remaining_positions, min(bomb_count, len(remaining_positions)))
-            
+            self._generate_approach_a_balanced(all_positions, total_cells)
         elif self.approach == 'B':
-            # Abordagem B: Sem tesouros, apenas bombas e livres
-            self.treasure_count = 0
-            treasure_positions = []
-            
-            # Garantir que (0,0) seja sempre uma célula livre
-            safe_start_positions = [(0, 0)]
-            remaining_positions = [pos for pos in all_positions if pos not in safe_start_positions]
-            
-            # Calcular número de bombas
-            bomb_count = int((total_cells - len(safe_start_positions)) * self.bomb_ratio)
-            bomb_positions = random.sample(remaining_positions, min(bomb_count, len(remaining_positions)))
-            
+            self._generate_approach_b(all_positions, total_cells)
         elif self.approach == 'C':
-            # Abordagem C: Tesouros, bombas e uma bandeira
-            # Garantir que tesouros não sejam mais que 20% do ambiente
-            max_treasures = int(total_cells * 0.2)
-            self.treasure_count = min(self.treasure_count, max_treasures)
-            
-            # Escolher posições para tesouros
-            treasure_positions = random.sample(all_positions, self.treasure_count)
-            
-            # Escolher posição para bandeira (não em tesouro)
-            remaining_positions = [pos for pos in all_positions if pos not in treasure_positions]
-            self.flag_position = random.choice(remaining_positions)
-            remaining_positions.remove(self.flag_position)
-            
-            # Calcular número de bombas
-            bomb_count = int((total_cells - self.treasure_count - 1) * self.bomb_ratio)  # -1 para bandeira
-            bomb_positions = random.sample(remaining_positions, min(bomb_count, len(remaining_positions)))
-            
+            self._generate_approach_c(all_positions, total_cells)
         else:
             raise ValueError("Abordagem deve ser 'A', 'B' ou 'C'")
+        
+        self.original_grid = self.grid.copy()
+        
+        # Validar ambiente (silencioso por padrão)
+        if self.approach == 'A':
+            self._validate_environment_a(verbose=False)
+    
+    def _generate_approach_a_balanced(self, all_positions, total_cells):
+        """
+        Gera ambiente balanceado para Abordagem A.
+        Garante que todos os tesouros são alcançáveis.
+        """
+        # Garantir que tesouros não sejam mais que 20% do ambiente
+        max_treasures = int(total_cells * 0.2)
+        self.treasure_count = min(self.treasure_count, max_treasures)
+        
+        # Posição inicial
+        start_pos = (0, 0)
+        
+        # Escolher posições para tesouros espalhadas pelo grid
+        treasure_positions = self._select_distributed_treasures(all_positions, start_pos)
+        
+        # Criar zonas seguras ao redor de cada tesouro e da origem
+        safe_zones = self._create_safe_zones(treasure_positions, start_pos)
+        
+        # Calcular número de bombas baseado no bomb_ratio
+        # Excluir: zonas seguras e tesouros
+        occupied_positions = safe_zones | set(treasure_positions)
+        available_for_bombs = [pos for pos in all_positions if pos not in occupied_positions]
+        
+        # Garantir balanceamento: células livres devem ser suficientes
+        max_bombs = int(total_cells * self.bomb_ratio)
+        bomb_count = min(max_bombs, len(available_for_bombs))
+        
+        # Garantir mínimo de células livres (pelo menos 20% do total)
+        min_free_cells = int(total_cells * 0.2)
+        free_cells_count = len(safe_zones) + len(available_for_bombs) - bomb_count
+        if free_cells_count < min_free_cells:
+            bomb_count = max(0, len(available_for_bombs) - (min_free_cells - len(safe_zones)))
+        
+        bomb_positions = random.sample(available_for_bombs, bomb_count) if bomb_count > 0 else []
         
         # Inicializar grid
         for i in range(self.size):
@@ -91,12 +100,239 @@ class Environment:
                     self.grid[i, j] = 'T'
                 elif pos in bomb_positions:
                     self.grid[i, j] = 'B'
-                elif self.approach == 'C' and pos == self.flag_position:
+                else:
+                    self.grid[i, j] = 'L'
+    
+    def _select_distributed_treasures(self, all_positions, start_pos):
+        """
+        Seleciona posições de tesouros distribuídas pelo grid.
+        Evita concentração em uma área.
+        """
+        # Dividir grid em quadrantes
+        mid_x, mid_y = self.size // 2, self.size // 2
+        quadrants = {
+            'NW': [(i, j) for i, j in all_positions if i < mid_x and j < mid_y],
+            'NE': [(i, j) for i, j in all_positions if i < mid_x and j >= mid_y],
+            'SW': [(i, j) for i, j in all_positions if i >= mid_x and j < mid_y],
+            'SE': [(i, j) for i, j in all_positions if i >= mid_x and j >= mid_y]
+        }
+        
+        # Remover posição inicial
+        for quad in quadrants.values():
+            if start_pos in quad:
+                quad.remove(start_pos)
+        
+        # Distribuir tesouros entre quadrantes
+        treasures_per_quad = self.treasure_count // 4
+        extra_treasures = self.treasure_count % 4
+        
+        treasure_positions = []
+        for i, (quad_name, quad_positions) in enumerate(quadrants.items()):
+            if not quad_positions:
+                continue
+            
+            num_treasures = treasures_per_quad + (1 if i < extra_treasures else 0)
+            num_treasures = min(num_treasures, len(quad_positions))
+            
+            if num_treasures > 0:
+                selected = random.sample(quad_positions, num_treasures)
+                treasure_positions.extend(selected)
+        
+        # Se ainda precisamos de mais tesouros, adicionar aleatoriamente
+        if len(treasure_positions) < self.treasure_count:
+            remaining_positions = [p for p in all_positions 
+                                 if p not in treasure_positions and p != start_pos]
+            needed = self.treasure_count - len(treasure_positions)
+            if needed > 0 and remaining_positions:
+                treasure_positions.extend(random.sample(remaining_positions, 
+                                                       min(needed, len(remaining_positions))))
+        
+        return treasure_positions
+    
+    def _create_safe_zones(self, treasure_positions, start_pos):
+        """
+        Cria zonas seguras (sem bombas) ao redor de cada tesouro e da origem.
+        Usa BFS para garantir caminhos conectados.
+        """
+        safe_zones = set()
+        
+        # Adicionar posição inicial
+        safe_zones.add(start_pos)
+        
+        # Para cada tesouro, criar caminho até ele
+        for treasure_pos in treasure_positions:
+            path = self._find_path_bfs(start_pos, treasure_pos, safe_zones)
+            safe_zones.update(path)
+            
+            # Adicionar vizinhos do tesouro como seguro
+            neighbors = self.get_neighbors(*treasure_pos)
+            for neighbor in neighbors:
+                safe_zones.add(neighbor)
+        
+        return safe_zones
+    
+    def _find_path_bfs(self, start, end, existing_safe):
+        """
+        Encontra caminho de start até end usando BFS.
+        Prefere usar células já seguras quando possível.
+        """
+        queue = deque([start])
+        visited = {start}
+        parent = {start: None}
+        
+        while queue:
+            current = queue.popleft()
+            
+            if current == end:
+                # Reconstruir caminho
+                path = []
+                while current is not None:
+                    path.append(current)
+                    current = parent[current]
+                return path[::-1]
+            
+            x, y = current
+            neighbors = self.get_neighbors(x, y)
+            
+            # Ordenar vizinhos: preferir células já seguras
+            neighbors = sorted(neighbors, 
+                             key=lambda n: (n not in existing_safe, random.random()))
+            
+            for neighbor in neighbors:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    parent[neighbor] = current
+                    queue.append(neighbor)
+        
+        # Se não encontrar caminho, retornar linha reta
+        return [start, end]
+    
+    def _validate_environment_a(self, verbose=True):
+        """
+        Valida se o ambiente está balanceado para Abordagem A:
+        - Todos os tesouros são alcançáveis
+        - Proporção de bombas está dentro dos limites
+        - Células livres são suficientes
+        """
+        total_cells = self.size * self.size
+        
+        # Contar tipos de células
+        bomb_count = np.sum(self.grid == 'B')
+        free_count = np.sum(self.grid == 'L')
+        treasure_count = np.sum(self.grid == 'T')
+        
+        # Verificar proporções
+        bomb_ratio_actual = bomb_count / total_cells
+        free_ratio_actual = free_count / total_cells
+        
+        # Verificar alcançabilidade de todos os tesouros
+        treasure_positions = [(i, j) for i in range(self.size) 
+                             for j in range(self.size) if self.grid[i, j] == 'T']
+        
+        reachable_treasures = 0
+        for treasure_pos in treasure_positions:
+            if self._is_reachable((0, 0), treasure_pos):
+                reachable_treasures += 1
+        
+        all_reachable = (reachable_treasures == len(treasure_positions))
+        
+        # Log de validação (se verbose)
+        if verbose:
+            print(f"\n📊 Estatísticas do Ambiente (Abordagem A):")
+            print(f"   Tamanho: {self.size}x{self.size} ({total_cells} células)")
+            print(f"   🟢 Células Livres: {free_count} ({free_ratio_actual:.1%})")
+            print(f"   💣 Bombas: {bomb_count} ({bomb_ratio_actual:.1%})")
+            print(f"   💎 Tesouros: {treasure_count} ({treasure_count/total_cells:.1%})")
+            print(f"   ✅ Tesouros Alcançáveis: {reachable_treasures}/{len(treasure_positions)}")
+            
+            if not all_reachable:
+                print(f"   ⚠️  AVISO: Alguns tesouros não são alcançáveis!")
+            
+            if bomb_ratio_actual < 0.2 or bomb_ratio_actual > 0.8:
+                print(f"   ⚠️  AVISO: Proporção de bombas fora do ideal (20%-80%)")
+            
+            if free_ratio_actual < 0.2:
+                print(f"   ⚠️  AVISO: Poucas células livres (<20%)")
+        
+        return all_reachable
+    
+    def _is_reachable(self, start_pos, end_pos):
+        """
+        Verifica se end_pos é alcançável a partir de start_pos.
+        Considera apenas células livres e tesouros (não bombas).
+        """
+        queue = deque([start_pos])
+        visited = {start_pos}
+        
+        while queue:
+            current = queue.popleft()
+            
+            if current == end_pos:
+                return True
+            
+            x, y = current
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                neighbor = (nx, ny)
+                
+                if (0 <= nx < self.size and 0 <= ny < self.size and 
+                    neighbor not in visited):
+                    cell_type = self.grid[nx, ny]
+                    # Pode atravessar: Livre ou Tesouro (não Bomba)
+                    if cell_type in ['L', 'T']:
+                        visited.add(neighbor)
+                        queue.append(neighbor)
+        
+        return False
+    
+    def _generate_approach_b(self, all_positions, total_cells):
+        """Abordagem B: Sem tesouros, apenas exploração"""
+        self.treasure_count = 0
+        treasure_positions = []
+        
+        # Garantir que (0,0) seja sempre uma célula livre
+        safe_start_positions = [(0, 0)]
+        remaining_positions = [pos for pos in all_positions if pos not in safe_start_positions]
+        
+        # Calcular número de bombas
+        bomb_count = int((total_cells - len(safe_start_positions)) * self.bomb_ratio)
+        bomb_positions = random.sample(remaining_positions, min(bomb_count, len(remaining_positions)))
+        
+        # Inicializar grid
+        for i in range(self.size):
+            for j in range(self.size):
+                pos = (i, j)
+                if pos in bomb_positions:
+                    self.grid[i, j] = 'B'
+                else:
+                    self.grid[i, j] = 'L'
+    
+    def _generate_approach_c(self, all_positions, total_cells):
+        """Abordagem C: Com bandeira (usa lógica da abordagem_c.py)"""
+        max_treasures = int(total_cells * 0.2)
+        self.treasure_count = min(self.treasure_count, max_treasures)
+        
+        treasure_positions = random.sample(all_positions, self.treasure_count)
+        
+        remaining_positions = [pos for pos in all_positions if pos not in treasure_positions]
+        self.flag_position = random.choice(remaining_positions)
+        remaining_positions.remove(self.flag_position)
+        
+        bomb_count = int((total_cells - self.treasure_count - 1) * self.bomb_ratio)
+        bomb_positions = random.sample(remaining_positions, min(bomb_count, len(remaining_positions)))
+        
+        # Inicializar grid
+        for i in range(self.size):
+            for j in range(self.size):
+                pos = (i, j)
+                if pos in treasure_positions:
+                    self.grid[i, j] = 'T'
+                elif pos in bomb_positions:
+                    self.grid[i, j] = 'B'
+                elif pos == self.flag_position:
                     self.grid[i, j] = 'F'
                 else:
                     self.grid[i, j] = 'L'
-        
-        self.original_grid = self.grid.copy()
         
     def reset_treasure(self, position):
         """Remove tesouro após ser coletado"""
@@ -111,16 +347,12 @@ class Environment:
     def get_neighbors(self, x, y):
         """Retorna vizinhas válidas (apenas horizontal/vertical)"""
         neighbors = []
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Apenas 4 direções
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
         for dx, dy in directions:
             nx, ny = x + dx, y + dy
             if 0 <= nx < self.size and 0 <= ny < self.size:
                 neighbors.append((nx, ny))
         return neighbors
-
-# ============================================
-# 2. MEMÓRIA COMPARTILHADA CORRIGIDA
-# ============================================
 
 class SharedMemory:
     def __init__(self, env_size=10):
@@ -142,6 +374,11 @@ class SharedMemory:
                     'explored': False,
                     'safe': True  # Assume-se seguro até descobrir bomba
                 }
+        
+        # A posição inicial (0,0) está sempre explorada
+        self.explored.add((0, 0))
+        self.cell_knowledge[(0, 0)]['explored'] = True
+        self.cell_knowledge[(0, 0)]['type'] = 'L'  # Posição inicial é sempre livre
     
     def update_explored(self, position, content, agent_id, env):
         """Atualiza memória com nova exploração"""
@@ -431,7 +668,184 @@ class Agent:
         return log_msg
 
 # ============================================
-# 4. MOTOR DE INFERÊNCIA MELHORADO
+# 4. AGENTE GREEDY BEST-FIRST (BASELINE PURA)
+# ============================================
+
+class AgentGreedyBestFirst:
+    """
+    Agente Greedy Best-first Search - BASELINE PURA para Abordagem A
+    
+    CARACTERÍSTICAS:
+    ✅ SEM ML (sem modelos, sem treino)
+    ✅ SEM motor de inferência complexo
+    ✅ SEM previsões (apenas explora o conhecido)
+    ✅ Usa apenas heurística gulosa: distância + potencial de tesouro
+    ✅ Estratégia simples determinística
+    
+    HEURÍSTICA: h(n) = (distância ao tesouro conhecido) + (distância ao centro)
+    - Prioriza células não exploradas próximas ao centro (estatisticamente mais tesouros)
+    - Usa memória compartilhada como baseline deve
+    """
+    
+    def __init__(self, agent_id, start_pos=(0, 0)):
+        self.id = agent_id
+        self.position = start_pos
+        self.alive = True
+        self.treasures_collected = 0
+        self.bombs_defused = 0
+        self.steps_taken = 0
+        
+        # CORREÇÃO: Seed única por agente para dispersão
+        self.random_seed = agent_id * 1000
+        
+    def heuristic_value(self, position, shared_memory, env):
+        """
+        Calcula valor heurístico da célula
+        Menor valor = maior prioridade
+        
+        Considera:
+        1. Distância ao tesouro conhecido mais próximo
+        2. Distância ao centro (statistically more treasures)
+        3. Se já explorada (penalidade)
+        """
+        x, y = position
+        center_x, center_y = env.size / 2, env.size / 2
+        
+        # Penalidade base: célula já explorada
+        if shared_memory.cell_knowledge[position]['explored']:
+            return float('inf')  # Não revisitar
+        
+        # Distância ao centro (áreas centrais têm mais tesouros)
+        distance_to_center = abs(x - center_x) + abs(y - center_y)
+        
+        # Se há tesouro conhecido, calcular distância
+        distance_to_known_treasure = float('inf')
+        if shared_memory.treasures_found:
+            for tx, ty in shared_memory.treasures_found:
+                if (tx, ty) not in shared_memory.treasures_collected:
+                    dist = abs(x - tx) + abs(y - ty)
+                    distance_to_known_treasure = min(distance_to_known_treasure, dist)
+        
+        # Heurística combinada: prioriza perto do centro se não há tesouro conhecido
+        if distance_to_known_treasure == float('inf'):
+            # Sem tesouro conhecido: explorar próximo ao centro
+            h_value = distance_to_center * 0.7
+        else:
+            # Tesouro conhecido: ir buscar ou explorar perto
+            h_value = distance_to_known_treasure * 0.8 + distance_to_center * 0.2
+        
+        # Penalidade se célula é adjacente a bomba conhecida
+        for bx, by in shared_memory.bombs_found:
+            if abs(x - bx) + abs(y - by) == 1:
+                h_value += 5.0  # Penalidade por estar perto de bomba
+        
+        # CORREÇÃO: Adicionar variação baseada no ID do agente
+        # Isso faz com que agentes priorizem direções ligeiramente diferentes
+        random.seed(self.random_seed + x * 100 + y)
+        h_value += random.uniform(-0.5, 0.5)
+        
+        return h_value
+    
+    def choose_action(self, shared_memory, env):
+        """
+        Greedy Best-first: escolhe célula com menor heurística
+        (sem ML, apenas exploração gulosa)
+        """
+        if not self.alive:
+            return None
+        
+        x, y = self.position
+        neighbors = env.get_neighbors(x, y)
+        
+        # CORREÇÃO: Ordenar vizinhas usando seed do agente
+        # Isso garante que cada agente tenha uma ordem de preferência diferente
+        random.seed(self.random_seed + self.steps_taken)
+        random.shuffle(neighbors)
+        
+        # Filtrar vizinhas seguras e não exploradas
+        candidates = []
+        for neighbor in neighbors:
+            # Evitar bombas conhecidas
+            if neighbor in shared_memory.bombs_found:
+                continue
+            
+            # Calcular valor heurístico
+            h_val = self.heuristic_value(neighbor, shared_memory, env)
+            
+            if h_val != float('inf'):  # Não é explorada
+                candidates.append((h_val, neighbor))
+        
+        if not candidates:
+            # Se sem vizinhas boas, procurar mais longe (BFS simples)
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    if dx == 0 and dy == 0:
+                        continue
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < env.size and 0 <= ny < env.size:
+                        neighbor = (nx, ny)
+                        if neighbor in shared_memory.bombs_found:
+                            continue
+                        h_val = self.heuristic_value(neighbor, shared_memory, env)
+                        if h_val != float('inf'):
+                            candidates.append((h_val, neighbor))
+        
+        if not candidates:
+            return None
+        
+        # Escolher célula com menor heurística
+        candidates.sort(key=lambda x: x[0])
+        return candidates[0][1]
+    
+    def move_to(self, new_position, shared_memory, env):
+        """Move agente para nova posição"""
+        if not self.alive or new_position is None:
+            return "Agente inativo"
+        
+        self.position = new_position
+        self.steps_taken += 1
+        
+        x, y = new_position
+        cell_content = env.get_cell(x, y)
+        log_msg = f"Agente {self.id}: {cell_content} em {new_position}"
+        
+        # Atualizar memória compartilhada
+        shared_memory.explored.add(new_position)
+        shared_memory.agent_positions[self.id] = new_position
+        shared_memory.cell_knowledge[new_position]['explored'] = True
+        shared_memory.cell_knowledge[new_position]['type'] = cell_content
+        
+        if cell_content == 'T':
+            if new_position not in shared_memory.treasures_collected:
+                self.treasures_collected += 1
+                self.bombs_defused += 1  # CORREÇÃO: Ganhar poder de desativar bomba
+                shared_memory.treasures_found.add(new_position)
+                shared_memory.treasures_collected.add(new_position)
+                env.reset_treasure(new_position)
+                log_msg += " (TESOURO COLETADO!)"
+            else:
+                log_msg += " (TESOURO JÁ COLETADO)"
+        elif cell_content == 'B':
+            shared_memory.bombs_found.add(new_position)
+            shared_memory.cell_knowledge[new_position]['safe'] = False
+            if self.bombs_defused > 0:
+                self.bombs_defused -= 1
+                log_msg += " (BOMBA DESATIVADA!)"
+                shared_memory.cell_knowledge[new_position]['safe'] = True
+            else:
+                self.alive = False
+                log_msg += " (AGENTE DESTRUÍDO)"
+        else:
+            shared_memory.cell_knowledge[new_position]['safe'] = True
+        
+        return log_msg
+    
+    def train_models(self, shared_memory=None, env=None):
+        """Método vazio - compatibilidade com GUI"""
+        pass
+
+# ============================================
+# 5. MOTOR DE INFERÊNCIA MELHORADO
 # ============================================
 
 class InferenceEngine:
@@ -596,7 +1010,16 @@ class ApproachASimulation:
                 if next_pos:  # Só mover se houver ação válida
                     log_msg = agent.move_to(next_pos, self.shared_memory, self.env)
                     if verbose and ("TESOURO" in log_msg or "BOMBA" in log_msg or "BANDEIRA" in log_msg):
+                        # Adicionar contador de tesouros ao log
+                        if "TESOURO COLETADO" in log_msg and self.approach == 'A':
+                            treasures_count = len(self.shared_memory.treasures_collected)
+                            log_msg += f" | Total: {treasures_count}/{self.env.treasure_count}"
                         step_logs.append(log_msg)
+            
+            # Imprimir logs do passo
+            if verbose and step_logs:
+                for log in step_logs:
+                    self.logs.append(log)
             
             # Atualizar métricas
             if verbose and step % 50 == 0:
@@ -679,6 +1102,7 @@ class BaselineSimulation:
         self.max_steps = max_steps
         self.agents = []
         self.logs = []
+        self.shared_memory = SharedMemory()  # Baseline agora usa memória compartilhada
         self.metrics = {
             'treasures_found': 0,
             'total_treasures': treasure_count,
@@ -688,37 +1112,33 @@ class BaselineSimulation:
             'success': False,
             'bomb_ratio': bomb_ratio
         }
-        self.shared_memory = None  # Baseline não usa memória compartilhada
         self.setup_agents()
         
     def setup_agents(self):
-        """Configura agentes sem memória compartilhada"""
-        base_weights = {'T': 5.0, 'L': 1.0, 'B': -100.0, 'U': 0.3, 'E': -0.5}
-        
+        """Configura agentes com Greedy Best-first (baseline pura)"""
         for i in range(self.num_agents):
-            # Cada agente tem sua própria memória (sem compartilhamento)
-            agent = Agent(agent_id=i, inference_weights=base_weights)
-            agent.is_baseline = True
+            # Usar AgentGreedyBestFirst - baseline pura SEM ML
+            agent = AgentGreedyBestFirst(agent_id=i)
             self.agents.append(agent)
     
     def run_simulation(self, verbose=False):
-        """Executa simulação sem colaboração"""
+        """Executa simulação baseline com Greedy Best-first"""
         start_time = time.time()
         step = 0
         total_treasures = self.env.treasure_count
         success_threshold = total_treasures * 0.5
         
         if verbose:
-            print(f"Iniciando simulação baseline com {self.num_agents} agentes...")
+            print(f"Iniciando simulação BASELINE (Greedy Best-first) com {self.num_agents} agentes...")
         
         while step < self.max_steps:
             step += 1
             actions_taken = 0
             
-            # Cada agente age independentemente
+            # Cada agente age
             for agent in self.agents:
                 if agent.alive:
-                    # Agente escolhe ação baseada apenas no seu conhecimento
+                    # Agente escolhe ação usando Greedy Best-first
                     next_pos = agent.choose_action(self.shared_memory, self.env)
                     if next_pos:
                         actions_taken += 1
@@ -726,17 +1146,16 @@ class BaselineSimulation:
                         if verbose and ("TESOURO" in log_msg or "DESTRUÍDO" in log_msg):
                             print(log_msg)
             
-            # Atualizar contagem de tesouros (para baseline, somar dos agentes)
-            if self.shared_memory is None:
-                self.metrics['treasures_found'] = sum(agent.treasures_collected for agent in self.agents)
-            else:
-                self.metrics['treasures_found'] = len(self.shared_memory.treasures_found)
+            # Atualizar contagem
+            self.metrics['treasures_found'] = len(self.shared_memory.treasures_collected)
+            self.metrics['agents_alive'] = len([a for a in self.agents if a.alive])
+            self.metrics['steps_taken'] = step
             
             # Verificar condições de parada
-            if self.metrics['treasures_found'] >= success_threshold:
+            if self.metrics['treasures_found'] > success_threshold:
                 self.metrics['success'] = True
                 if verbose:
-                    print(f"Sucesso! {self.metrics['treasures_found']} tesouros encontrados.")
+                    print(f"Sucesso! {self.metrics['treasures_found']} tesouros encontrados (>50%).")
                 break
                 
             if actions_taken == 0:  # Todos os agentes parados
